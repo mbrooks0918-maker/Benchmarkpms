@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html,
+body {
+  /* Dark by default — no white flash before React mounts. Use plain hex so
+     this doesn't depend on Tailwind's custom theme classes via @apply. */
+  background-color: #0a1a30; /* app */
+  color: #e8edf2; /* ink */
+  /* Make native controls (date pickers, scrollbars) render dark too. */
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+}
