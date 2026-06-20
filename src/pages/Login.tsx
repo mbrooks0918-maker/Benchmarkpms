@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import wordmark from '../assets/benchmark_logo_darkmode.png'
@@ -100,6 +100,13 @@ export default function Login() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        <p className="mt-4 text-center text-sm text-muted">
+          Need an account?{' '}
+          <Link to="/signup" className="font-medium text-amber-700">
+            Sign up
+          </Link>
+        </p>
       </div>
     </div>
   )

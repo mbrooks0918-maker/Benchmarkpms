@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 // Dashboard is the landing screen, so it stays eager. Login and ProjectDetail
 // are split into their own chunks to keep the initial bundle small.
 const Login = lazy(() => import('./pages/Login'))
+const SignUp = lazy(() => import('./pages/SignUp'))
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
 // Public, no-login client selections page (its own chunk).
 const ClientSelections = lazy(() => import('./pages/ClientSelections'))
@@ -33,6 +34,7 @@ export default function App() {
           {/* Public read-only progress view for interested parties. */}
           <Route path="/v/:token" element={<ProjectView />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
           <Route
             path="/"
             element={
