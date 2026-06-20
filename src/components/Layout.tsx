@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import wordmark from '../assets/benchmark_logo_darkmode.png'
 
@@ -11,8 +12,16 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-app">
       <header className="sticky top-0 z-10 border-b border-surfaceBorder bg-surface">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4">
-          <img src={wordmark} alt="BenchMark" className="h-7 w-auto" />
+          <Link to="/" aria-label="Dashboard">
+            <img src={wordmark} alt="BenchMark" className="h-7 w-auto" />
+          </Link>
           <div className="flex items-center gap-3">
+            <Link
+              to="/team"
+              className="min-h-[36px] inline-flex items-center rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
+            >
+              Team
+            </Link>
             <span className="hidden max-w-[10rem] truncate text-sm text-muted sm:inline">
               {displayName}
             </span>

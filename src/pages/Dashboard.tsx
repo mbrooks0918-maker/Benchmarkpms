@@ -398,6 +398,18 @@ export default function Dashboard() {
     load()
   }, [load])
 
+  // Finish a pending invite for users who signed up under email-confirmation:
+  // they confirm + log in, land here, and the join is completed once.
+  useEffect(() => {
+    const inviteToken = localStorage.getItem('pending_invite_token')
+    if (!inviteToken) return
+    ;(async () => {
+      await supabase.rpc('accept_invite', { p_token: inviteToken })
+      localStorage.removeItem('pending_invite_token')
+      load()
+    })()
+  }, [load])
+
   const handleDelete = async (project: Project) => {
     const ok = window.confirm(
       `Delete "${project.name}"? This permanently removes the project and its phases, benchmarks, and draws.`,

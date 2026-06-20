@@ -10,10 +10,13 @@ import Dashboard from './pages/Dashboard'
 const Login = lazy(() => import('./pages/Login'))
 const SignUp = lazy(() => import('./pages/SignUp'))
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
+const Team = lazy(() => import('./pages/Team'))
 // Public, no-login client selections page (its own chunk).
 const ClientSelections = lazy(() => import('./pages/ClientSelections'))
 // Public, no-login read-only progress view for interested parties.
 const ProjectView = lazy(() => import('./pages/ProjectView'))
+// Public, no-login invite acceptance page.
+const AcceptInvite = lazy(() => import('./pages/AcceptInvite'))
 
 function RouteFallback() {
   return (
@@ -33,6 +36,8 @@ export default function App() {
           <Route path="/s/:token" element={<ClientSelections />} />
           {/* Public read-only progress view for interested parties. */}
           <Route path="/v/:token" element={<ProjectView />} />
+          {/* Public invite acceptance — no auth (the visitor isn't a user yet). */}
+          <Route path="/accept-invite" element={<AcceptInvite />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route
@@ -51,6 +56,16 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <ProjectDetail />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/team"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Team />
                 </Layout>
               </ProtectedRoute>
             }
