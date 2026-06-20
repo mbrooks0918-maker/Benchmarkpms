@@ -20,6 +20,7 @@ import StatusNote from '../components/StatusNote'
 import SelectionsTab from '../components/SelectionsTab'
 import ShareLinks from '../components/ShareLinks'
 import AssignedPMs from '../components/AssignedPMs'
+import { useOrgRole } from '../lib/useOrgRole'
 import { formatDate } from '../lib/format'
 import type {
   Benchmark,
@@ -136,6 +137,8 @@ function CollapsibleSection({
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
   const { session } = useAuth()
+  // PMs see schedule/docs/change-orders but not draws or contract-total money.
+  const { isOwner } = useOrgRole()
 
   const [project, setProject] = useState<Project | null>(null)
   const [phases, setPhases] = useState<Phase[]>([])
@@ -560,42 +563,46 @@ export default function ProjectDetail() {
         </div>
       </header>
 
-      {/* Contract & schedule — collapsed by default */}
+      {/* Contract & schedule — money parts owner-only; PMs see schedule only */}
       <CollapsibleSection
-        title="Contract & schedule"
+        title={isOwner ? 'Contract & schedule' : 'Schedule'}
         summary={
-          project.total_amount != null
+          isOwner && project.total_amount != null
             ? usd.format(project.total_amount)
             : undefined
         }
       >
-        {/* Contract breakdown: original + change orders = current */}
-        <div className="space-y-1.5 rounded-xl bg-field p-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted">Original contract</span>
-            <span className="font-medium text-charcoal">
-              {originalAmount != null ? usd.format(originalAmount) : '—'}
-            </span>
+        {/* Contract breakdown: original + change orders = current (owner only) */}
+        {isOwner && (
+          <div className="space-y-1.5 rounded-xl bg-field p-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Original contract</span>
+              <span className="font-medium text-charcoal">
+                {originalAmount != null ? usd.format(originalAmount) : '—'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Change orders</span>
+              <span
+                className={`font-medium ${
+                  changeOrdersSum < 0 ? 'text-danger' : 'text-charcoal'
+                }`}
+              >
+                {formatSigned(changeOrdersSum)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between border-t border-surfaceBorder pt-1.5">
+              <span className="font-semibold text-charcoal">
+                Current contract
+              </span>
+              <span className="text-lg font-bold text-charcoal">
+                {project.total_amount != null
+                  ? usd.format(project.total_amount)
+                  : '—'}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted">Change orders</span>
-            <span
-              className={`font-medium ${
-                changeOrdersSum < 0 ? 'text-danger' : 'text-charcoal'
-              }`}
-            >
-              {formatSigned(changeOrdersSum)}
-            </span>
-          </div>
-          <div className="flex items-center justify-between border-t border-surfaceBorder pt-1.5">
-            <span className="font-semibold text-charcoal">Current contract</span>
-            <span className="text-lg font-bold text-charcoal">
-              {project.total_amount != null
-                ? usd.format(project.total_amount)
-                : '—'}
-            </span>
-          </div>
-        </div>
+        )}
 
         {/* Dates */}
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -617,8 +624,8 @@ export default function ProjectDetail() {
           </div>
         </div>
 
-        {/* Compact draw reconciliation (fail-safe) */}
-        {drawCheck && (
+        {/* Compact draw reconciliation (fail-safe) — owner only */}
+        {isOwner && drawCheck && (
           <div
             className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
               drawCheck.matches
@@ -727,29 +734,31 @@ export default function ProjectDetail() {
 
                   {isOpen && (
                     <>
-                  {/* Phase-anchored draws */}
-                  <div className="space-y-2 px-4 pb-4">
-                    {phaseDraws.map((d) => (
-                      <DrawItem
-                        key={d.id}
-                        draw={d}
-                        total={total}
-                        ready={phaseComplete}
-                        allowRemove
-                        onChanged={reloadDraws}
-                        setError={setError}
-                      />
-                    ))}
-                    {phaseDraws.length === 0 && (
-                      <button
-                        type="button"
-                        onClick={() => onAddDraw(phase)}
-                        className="min-h-[36px] rounded-lg border border-dashed border-surfaceBorder px-3 text-sm font-medium text-amber-700 hover:bg-amber/5"
-                      >
-                        + Add draw
-                      </button>
-                    )}
-                  </div>
+                  {/* Phase-anchored draws — owner only (money) */}
+                  {isOwner && (
+                    <div className="space-y-2 px-4 pb-4">
+                      {phaseDraws.map((d) => (
+                        <DrawItem
+                          key={d.id}
+                          draw={d}
+                          total={total}
+                          ready={phaseComplete}
+                          allowRemove
+                          onChanged={reloadDraws}
+                          setError={setError}
+                        />
+                      ))}
+                      {phaseDraws.length === 0 && (
+                        <button
+                          type="button"
+                          onClick={() => onAddDraw(phase)}
+                          className="min-h-[36px] rounded-lg border border-dashed border-surfaceBorder px-3 text-sm font-medium text-amber-700 hover:bg-amber/5"
+                        >
+                          + Add draw
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                     <ul className="divide-y divide-surfaceBorder/60 border-t border-surfaceBorder/60">
                       {benches.length === 0 && (
@@ -809,14 +818,15 @@ export default function ProjectDetail() {
                                     Inspection
                                   </span>
                                 )}
-                                {benchDraws.map((d) => (
-                                  <span
-                                    key={d.id}
-                                    className="rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success"
-                                  >
-                                    Draw · {formatDrawAmountInline(d, total)}
-                                  </span>
-                                ))}
+                                {isOwner &&
+                                  benchDraws.map((d) => (
+                                    <span
+                                      key={d.id}
+                                      className="rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success"
+                                    >
+                                      Draw · {formatDrawAmountInline(d, total)}
+                                    </span>
+                                  ))}
                               </div>
                               {b.completed && (
                                 <div className="mt-2 space-y-1">
@@ -834,8 +844,8 @@ export default function ProjectDetail() {
                                 </div>
                               )}
 
-                              {/* Benchmark-anchored draw details */}
-                              {benchDraws.length > 0 && (
+                              {/* Benchmark-anchored draw details — owner only */}
+                              {isOwner && benchDraws.length > 0 && (
                                 <div className="mt-2 space-y-2">
                                   {benchDraws.map((d) => (
                                     <DrawItem
@@ -962,13 +972,15 @@ export default function ProjectDetail() {
       {/* Assigned Project Managers — owners only (self-gating, hidden for PMs). */}
       <AssignedPMs projectId={project.id} />
 
-      {/* Share links — read-only progress views for interested parties. */}
-      <CollapsibleSection title="Share links">
-        <ShareLinks
-          projectId={project.id}
-          createdBy={session?.user?.id ?? null}
-        />
-      </CollapsibleSection>
+      {/* Share links — owner only (read-only progress views for outsiders). */}
+      {isOwner && (
+        <CollapsibleSection title="Share links">
+          <ShareLinks
+            projectId={project.id}
+            createdBy={session?.user?.id ?? null}
+          />
+        </CollapsibleSection>
+      )}
 
       {showEdit && (
         <EditProjectModal

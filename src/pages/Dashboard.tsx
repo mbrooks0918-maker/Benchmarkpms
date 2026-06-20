@@ -9,6 +9,7 @@ import type {
   Selection,
 } from '../lib/types'
 import { daysSince, formatDate } from '../lib/format'
+import { useOrgRole } from '../lib/useOrgRole'
 import NewProjectModal from '../components/NewProjectModal'
 import StatusNote from '../components/StatusNote'
 
@@ -100,6 +101,7 @@ function ProjectCard({
   progress,
   selectionCount,
   catalogTotal,
+  showMoney,
   onDelete,
   onUpdated,
 }: {
@@ -108,6 +110,7 @@ function ProjectCard({
   progress: ProjectProgress | undefined
   selectionCount: number
   catalogTotal: number
+  showMoney: boolean
   onDelete: (project: Project) => void
   onUpdated: () => void
 }) {
@@ -136,7 +139,7 @@ function ProjectCard({
         {project.address && (
           <p className="text-sm text-muted">{project.address}</p>
         )}
-        {project.total_amount != null && (
+        {showMoney && project.total_amount != null && (
           <p className="mt-2 text-sm font-medium text-charcoal">
             {usd.format(project.total_amount)}
           </p>
@@ -184,9 +187,11 @@ function ProjectCard({
 
 function CompletedCard({
   project,
+  showMoney,
   onDelete,
 }: {
   project: Project
+  showMoney: boolean
   onDelete: (project: Project) => void
 }) {
   return (
@@ -204,7 +209,7 @@ function CompletedCard({
         {project.address && (
           <p className="mt-1 text-sm text-muted">{project.address}</p>
         )}
-        {project.total_amount != null && (
+        {showMoney && project.total_amount != null && (
           <p className="mt-2 text-sm font-medium text-charcoal">
             {usd.format(project.total_amount)}
           </p>
@@ -255,6 +260,7 @@ interface SectionProps {
   progressByProject: Record<string, ProjectProgress>
   selectionsByProject: Record<string, number>
   catalogTotal: number
+  showMoney: boolean
   onAdd: () => void
   onDelete: (project: Project) => void
   onUpdated: () => void
@@ -268,6 +274,7 @@ function Section({
   progressByProject,
   selectionsByProject,
   catalogTotal,
+  showMoney,
   onAdd,
   onDelete,
   onUpdated,
@@ -302,6 +309,7 @@ function Section({
               progress={progressByProject[p.id]}
               selectionCount={selectionsByProject[p.id] ?? 0}
               catalogTotal={catalogTotal}
+              showMoney={showMoney}
               onDelete={onDelete}
               onUpdated={onUpdated}
             />
@@ -313,6 +321,8 @@ function Section({
 }
 
 export default function Dashboard() {
+  // Owners see contract totals on cards; PMs don't.
+  const { isOwner } = useOrgRole()
   const [projects, setProjects] = useState<Project[]>([])
   const [lastActivityByProject, setLastActivityByProject] = useState<
     Record<string, string | null>
@@ -479,6 +489,7 @@ export default function Dashboard() {
             progressByProject={progressByProject}
             selectionsByProject={selectionsByProject}
             catalogTotal={catalogTotal}
+            showMoney={isOwner}
             onAdd={() => setModalType('new_build')}
             onDelete={handleDelete}
             onUpdated={load}
@@ -491,6 +502,7 @@ export default function Dashboard() {
             progressByProject={progressByProject}
             selectionsByProject={selectionsByProject}
             catalogTotal={catalogTotal}
+            showMoney={isOwner}
             onAdd={() => setModalType('renovation')}
             onDelete={handleDelete}
             onUpdated={load}
@@ -506,7 +518,12 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-3">
               {completedProjects.map((p) => (
-                <CompletedCard key={p.id} project={p} onDelete={handleDelete} />
+                <CompletedCard
+                  key={p.id}
+                  project={p}
+                  showMoney={isOwner}
+                  onDelete={handleDelete}
+                />
               ))}
             </div>
           )}
