@@ -1,11 +1,17 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { createProject } from '../lib/createProject'
+import { supabase } from '../lib/supabase'
 import type { FoundationType, ProjectType } from '../lib/types'
 
 interface Props {
   type: ProjectType
   onClose: () => void
   onCreated: () => void
+}
+
+interface OrgPm {
+  user_id: string
+  full_name: string | null
 }
 
 const LABELS: Record<ProjectType, string> = {
@@ -26,6 +32,35 @@ export default function NewProjectModal({ type, onClose, onCreated }: Props) {
   const [targetDate, setTargetDate] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Project managers in this org, for the assignment picker.
+  const [pms, setPms] = useState<OrgPm[]>([])
+  const [selectedPms, setSelectedPms] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const { data } = await supabase.rpc('org_members_list')
+      if (!active) return
+      const rows = (
+        (data ?? []) as { user_id: string; full_name: string | null; role: string }[]
+      ).filter((r) => r.role === 'pm')
+      setPms(rows.map((r) => ({ user_id: r.user_id, full_name: r.full_name })))
+      // Exactly one PM → pre-select. Zero or several → leave the owner to pick.
+      if (rows.length === 1) setSelectedPms(new Set([rows[0].user_id]))
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const togglePm = (id: string) =>
+    setSelectedPms((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -48,7 +83,7 @@ export default function NewProjectModal({ type, onClose, onCreated }: Props) {
       [street.trim(), city.trim(), stateZip].filter(Boolean).join(', ') || null
 
     try {
-      await createProject({
+      const newId = await createProject({
         type,
         name: name.trim(),
         foundation: type === 'new_build' ? foundation : null,
@@ -58,6 +93,22 @@ export default function NewProjectModal({ type, onClose, onCreated }: Props) {
         start_date: startDate || null,
         target_completion_date: targetDate || null,
       })
+
+      // Assign the chosen PM(s) to the new project. Done after the project
+      // exists; a failure here shouldn't undo the created job.
+      if (newId && selectedPms.size > 0) {
+        const rows = [...selectedPms].map((user_id) => ({
+          project_id: newId,
+          user_id,
+        }))
+        const { error: assignErr } = await supabase
+          .from('project_assignments')
+          .insert(rows)
+        if (assignErr) {
+          console.error('Failed to assign PMs:', assignErr.message)
+        }
+      }
+
       onCreated()
       onClose()
     } catch (err) {
@@ -238,6 +289,40 @@ export default function NewProjectModal({ type, onClose, onCreated }: Props) {
               />
             </div>
           </div>
+
+          {/* Assign PM(s) */}
+          {pms.length === 0 ? (
+            <p className="text-xs text-muted">
+              No project managers yet — invite one on the Team page.
+            </p>
+          ) : (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-charcoal">
+                Assign Project Manager(s)
+              </label>
+              <div className="space-y-2">
+                {pms.map((pm) => {
+                  const checked = selectedPms.has(pm.user_id)
+                  return (
+                    <label
+                      key={pm.user_id}
+                      className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border border-surfaceBorder bg-field px-3"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePm(pm.user_id)}
+                        className="h-5 w-5 shrink-0 cursor-pointer rounded border-surfaceBorder accent-amber"
+                      />
+                      <span className="text-sm text-ink">
+                        {pm.full_name?.trim() || 'PM'}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="rounded-lg bg-danger/15 px-3 py-2 text-sm text-danger">

@@ -19,6 +19,7 @@ import VendorDocs from '../components/VendorDocs'
 import StatusNote from '../components/StatusNote'
 import SelectionsTab from '../components/SelectionsTab'
 import ShareLinks from '../components/ShareLinks'
+import AssignedPMs from '../components/AssignedPMs'
 import { formatDate } from '../lib/format'
 import type {
   Benchmark,
@@ -957,6 +958,9 @@ export default function ProjectDetail() {
           />
         </CollapsibleSection>
       )}
+
+      {/* Assigned Project Managers — owners only (self-gating, hidden for PMs). */}
+      <AssignedPMs projectId={project.id} />
 
       {/* Share links — read-only progress views for interested parties. */}
       <CollapsibleSection title="Share links">

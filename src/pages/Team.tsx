@@ -163,15 +163,19 @@ export default function Team() {
     if (!orgId) return
     // Owners are never removable from this UI.
     if (m.role === 'owner') return
-    if (!window.confirm(`Remove ${memberDisplayName(m)} from the team?`)) return
+    if (
+      !window.confirm(
+        `Remove ${memberDisplayName(m)}? This deletes their account.`,
+      )
+    )
+      return
     setError(null)
-    const { error: delErr } = await supabase
-      .from('org_members')
-      .delete()
-      .eq('org_id', orgId)
-      .eq('user_id', m.user_id)
-    if (delErr) {
-      setError(delErr.message)
+    // RPC removes membership, unassigns their jobs, and deletes their login.
+    const { error: rpcErr } = await supabase.rpc('remove_member', {
+      p_user: m.user_id,
+    })
+    if (rpcErr) {
+      setError(rpcErr.message)
       return
     }
     await loadOrgData(orgId)
