@@ -133,6 +133,24 @@ function SignaturePad({
   )
 }
 
+// Stable page chrome. Defined at module scope so its identity never changes
+// across renders — otherwise the whole subtree (name input + signature canvas)
+// would remount on every keystroke/draw.
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col bg-app">
+      <header className="border-b border-surfaceBorder bg-surface">
+        <div className="mx-auto flex h-14 max-w-2xl items-center px-4">
+          <img src={wordmark} alt="BenchMark" className="h-7 w-auto" />
+        </div>
+      </header>
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6">
+        {children}
+      </main>
+    </div>
+  )
+}
+
 export default function SignChangeOrder() {
   const { token } = useParams<{ token: string }>()
 
@@ -213,19 +231,6 @@ export default function SignChangeOrder() {
     }
     setDone(true)
   }
-
-  const Shell = ({ children }: { children: React.ReactNode }) => (
-    <div className="flex min-h-screen flex-col bg-app">
-      <header className="border-b border-surfaceBorder bg-surface">
-        <div className="mx-auto flex h-14 max-w-2xl items-center px-4">
-          <img src={wordmark} alt="BenchMark" className="h-7 w-auto" />
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-6">
-        {children}
-      </main>
-    </div>
-  )
 
   if (loading) {
     return (
