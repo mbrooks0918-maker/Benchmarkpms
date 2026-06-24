@@ -9,6 +9,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { formatDate } from '../lib/format'
 import { useOrgRole } from '../lib/useOrgRole'
+import { downloadSignedCoPdf } from '../lib/signedCoPdf'
 import type { ChangeOrder, Draw, Phase, Project } from '../lib/types'
 
 const BUCKET = 'project-docs'
@@ -77,6 +78,7 @@ export default function ChangeOrders({
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [viewSigId, setViewSigId] = useState<string | null>(null)
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const signUrl = (tk: string) => `${window.location.origin}/sign/${tk}`
@@ -357,9 +359,16 @@ export default function ChangeOrders({
     await load()
   }
 
-  // Placeholder — wired up in the next step (signed-PDF generation).
-  const downloadSignedCO = (_co: ChangeOrder) => {
-    // TODO: generate & download the signed change-order PDF.
+  // Build + download the signed CO PDF entirely in the browser.
+  const downloadSignedCO = async (co: ChangeOrder) => {
+    setError(null)
+    try {
+      await downloadSignedCoPdf(co, project.name, project.address)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Could not generate the PDF.',
+      )
+    }
   }
 
   const inputClass =
@@ -468,25 +477,100 @@ export default function ChangeOrders({
                         Signed{co.signed_name ? ` by ${co.signed_name}` : ''} on{' '}
                         {formatDate(co.signed_at)}
                       </span>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          disabled
-                          onClick={() => downloadSignedCO(co)}
-                          className="min-h-[40px] rounded-lg border border-surfaceBorder px-3 text-sm font-medium text-charcoal transition hover:bg-white/5 disabled:opacity-50"
-                        >
-                          Download signed PDF
-                        </button>
-                        {isOwner && (
-                          <button
-                            type="button"
-                            onClick={() => onVoid(co)}
-                            className="min-h-[40px] rounded-lg border border-surfaceBorder px-3 text-sm font-medium text-danger transition hover:bg-danger/10"
-                          >
-                            Void
-                          </button>
-                        )}
-                      </div>
+                      {/* Detailed view + PDF + void are owner-only (IP shown). */}
+                      {isOwner && (
+                        <>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => downloadSignedCO(co)}
+                              className="min-h-[40px] rounded-lg border border-surfaceBorder px-3 text-sm font-medium text-charcoal transition hover:bg-white/5"
+                            >
+                              Download signed PDF
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setViewSigId((id) => (id === co.id ? null : co.id))
+                              }
+                              className="min-h-[40px] rounded-lg border border-surfaceBorder px-3 text-sm font-medium text-charcoal transition hover:bg-white/5"
+                            >
+                              {viewSigId === co.id
+                                ? 'Hide signature'
+                                : 'View signature'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onVoid(co)}
+                              className="min-h-[40px] rounded-lg border border-surfaceBorder px-3 text-sm font-medium text-danger transition hover:bg-danger/10"
+                            >
+                              Void
+                            </button>
+                          </div>
+
+                          {viewSigId === co.id && (
+                            <div className="rounded-xl border border-surfaceBorder bg-field p-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+                                  Change Order
+                                  {co.co_number ? ` ${co.co_number}` : ''}
+                                </span>
+                                <span
+                                  className={`text-sm font-bold ${
+                                    co.amount < 0
+                                      ? 'text-danger'
+                                      : 'text-charcoal'
+                                  }`}
+                                >
+                                  {formatSigned(co.amount)}
+                                </span>
+                              </div>
+                              {co.description && (
+                                <p className="mt-1 text-sm text-charcoal">
+                                  {co.description}
+                                </p>
+                              )}
+                              <p className="mt-1 text-xs text-muted">
+                                {formatDate(co.co_date)}
+                              </p>
+
+                              <dl className="mt-3 space-y-1 border-t border-surfaceBorder pt-3 text-sm">
+                                <div className="flex justify-between gap-2">
+                                  <dt className="text-muted">Signed by</dt>
+                                  <dd className="font-medium text-charcoal">
+                                    {co.signed_name ?? '—'}
+                                  </dd>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                  <dt className="text-muted">Signed on</dt>
+                                  <dd className="font-medium text-charcoal">
+                                    {formatDate(co.signed_at)}
+                                  </dd>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                  <dt className="text-muted">IP</dt>
+                                  <dd className="text-xs text-muted">
+                                    {co.signed_ip ?? '—'}
+                                  </dd>
+                                </div>
+                              </dl>
+
+                              {co.signature_image && (
+                                <div className="mt-3">
+                                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">
+                                    Signature
+                                  </p>
+                                  <img
+                                    src={co.signature_image}
+                                    alt="Customer signature"
+                                    className="h-24 w-full rounded-lg border border-surfaceBorder bg-surface object-contain"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   ) : co.sign_token ? (
                     <div className="space-y-2">
