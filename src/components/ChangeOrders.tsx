@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { supabase } from '../lib/supabase'
 import { formatDate } from '../lib/format'
+import { useOrgRole } from '../lib/useOrgRole'
 import type { ChangeOrder, Draw, Phase, Project } from '../lib/types'
 
 const BUCKET = 'project-docs'
@@ -68,12 +69,17 @@ export default function ChangeOrders({
   embedded = false,
 }: Props) {
   const projectId = project.id
+  const { isOwner } = useOrgRole()
 
   const [cos, setCos] = useState<ChangeOrder[]>([])
   const [docById, setDocById] = useState<Record<string, DocRef>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const signUrl = (tk: string) => `${window.location.origin}/sign/${tk}`
 
   const [showForm, setShowForm] = useState(false)
   const [coNumber, setCoNumber] = useState('')
@@ -310,6 +316,52 @@ export default function ChangeOrders({
     await load()
   }
 
+  // Owner generates a public signing link by setting a random sign_token.
+  const onGenerateLink = async (co: ChangeOrder) => {
+    setError(null)
+    const token = crypto.randomUUID().replace(/-/g, '')
+    const { error: updErr } = await supabase
+      .from('change_orders')
+      .update({ sign_token: token })
+      .eq('id', co.id)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    await load()
+  }
+
+  const onCopyLink = async (co: ChangeOrder) => {
+    if (!co.sign_token) return
+    try {
+      await navigator.clipboard.writeText(signUrl(co.sign_token))
+      setCopiedId(co.id)
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+      copyTimer.current = setTimeout(() => setCopiedId(null), 2000)
+    } catch {
+      setError('Could not copy — copy the link manually.')
+    }
+  }
+
+  const onVoid = async (co: ChangeOrder) => {
+    if (!window.confirm('Void this signed change order?')) return
+    setError(null)
+    const { error: updErr } = await supabase
+      .from('change_orders')
+      .update({ voided: true })
+      .eq('id', co.id)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    await load()
+  }
+
+  // Placeholder — wired up in the next step (signed-PDF generation).
+  const downloadSignedCO = (_co: ChangeOrder) => {
+    // TODO: generate & download the signed change-order PDF.
+  }
+
   const inputClass =
     'min-h-[44px] w-full rounded-lg border border-surfaceBorder bg-field text-ink placeholder:text-muted px-3 text-base outline-none focus:border-amber focus:ring-1 focus:ring-amber'
 
@@ -390,31 +442,133 @@ export default function ChangeOrders({
                     </>
                   )}
                 </div>
+
+                {/* E-signing status + controls */}
+                <div className="mt-2">
+                  {co.voided ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted/20 px-2.5 py-0.5 text-xs font-medium text-muted">
+                      Voided
+                    </span>
+                  ) : co.signed_at ? (
+                    <div className="space-y-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-medium text-success">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-3.5 w-3.5"
+                          aria-hidden
+                        >
+                          <path d="M20 6 9 17l-5-5" />
+                        </svg>
+                        Signed{co.signed_name ? ` by ${co.signed_name}` : ''} on{' '}
+                        {formatDate(co.signed_at)}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled
+                          onClick={() => downloadSignedCO(co)}
+                          className="min-h-[40px] rounded-lg border border-surfaceBorder px-3 text-sm font-medium text-charcoal transition hover:bg-white/5 disabled:opacity-50"
+                        >
+                          Download signed PDF
+                        </button>
+                        {isOwner && (
+                          <button
+                            type="button"
+                            onClick={() => onVoid(co)}
+                            className="min-h-[40px] rounded-lg border border-surfaceBorder px-3 text-sm font-medium text-danger transition hover:bg-danger/10"
+                          >
+                            Void
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : co.sign_token ? (
+                    <div className="space-y-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber/10 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                        Awaiting signature
+                      </span>
+                      {isOwner && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <code className="min-w-0 flex-1 truncate rounded-lg bg-field px-3 py-2 text-xs text-ink">
+                            {signUrl(co.sign_token)}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => onCopyLink(co)}
+                            className="min-h-[40px] rounded-lg bg-amber px-3 text-sm font-medium text-white transition hover:bg-amber-700"
+                          >
+                            {copiedId === co.id ? 'Copied!' : 'Copy link'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => onGenerateLink(co)}
+                        className="min-h-[40px] rounded-lg border border-surfaceBorder px-3 text-sm font-medium text-amber-700 transition hover:bg-amber/5"
+                      >
+                        Generate signing link
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => onDelete(co)}
-                aria-label="Delete change order"
-                title="Delete change order"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-danger/15 hover:text-danger"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-5 w-5"
+
+              {/* Signed/voided COs are locked; otherwise allow delete. */}
+              {co.signed_at || co.voided ? (
+                <span
+                  title="Signed — locked from edits"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center text-muted"
                 >
-                  <path d="M3 6h18" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                  <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
-                </svg>
-              </button>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    aria-hidden
+                  >
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onDelete(co)}
+                  aria-label="Delete change order"
+                  title="Delete change order"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-danger/15 hover:text-danger"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                  >
+                    <path d="M3 6h18" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                    <path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </button>
+              )}
             </li>
           ))}
         </ul>

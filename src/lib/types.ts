@@ -152,6 +152,13 @@ export interface ChangeOrder {
   document_id: string | null
   created_by: string | null
   created_at: string
+  /** E-signature fields. A signed CO is locked from edits (DB-enforced). */
+  sign_token: string | null
+  signed_at: string | null
+  signed_name: string | null
+  signature_image: string | null
+  signed_ip: string | null
+  voided: boolean
 }
 
 export interface Photo {

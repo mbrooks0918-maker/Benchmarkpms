@@ -17,6 +17,8 @@ const ClientSelections = lazy(() => import('./pages/ClientSelections'))
 const ProjectView = lazy(() => import('./pages/ProjectView'))
 // Public, no-login invite acceptance page.
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'))
+// Public, no-login change-order signing page.
+const SignChangeOrder = lazy(() => import('./pages/SignChangeOrder'))
 
 function RouteFallback() {
   return (
@@ -38,6 +40,8 @@ export default function App() {
           <Route path="/v/:token" element={<ProjectView />} />
           {/* Public invite acceptance — no auth (the visitor isn't a user yet). */}
           <Route path="/accept-invite" element={<AcceptInvite />} />
+          {/* Public change-order signing — no auth. */}
+          <Route path="/sign/:token" element={<SignChangeOrder />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route
