@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import ChangePassword from '../components/ChangePassword'
 
 interface OrgInvite {
   id: string
@@ -198,6 +199,9 @@ export default function Team() {
           {error}
         </p>
       )}
+
+      {/* Account — any logged-in user can change their own password */}
+      <ChangePassword />
 
       {/* Invite a PM — owners only */}
       {isOwner && (

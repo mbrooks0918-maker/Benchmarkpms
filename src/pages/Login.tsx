@@ -11,6 +11,12 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // Forgot-password flow.
+  const [showReset, setShowReset] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSending, setResetSending] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+
   if (!loading && session) {
     return <Navigate to="/" replace />
   }
@@ -28,6 +34,17 @@ export default function Login() {
       setSubmitting(false)
     }
     // On success, onAuthStateChange handles redirect via the guard above.
+  }
+
+  const handleReset = async (e: FormEvent) => {
+    e.preventDefault()
+    setResetSending(true)
+    // Always show the same message — don't reveal whether the email exists.
+    await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setResetSending(false)
+    setResetSent(true)
   }
 
   return (
@@ -99,7 +116,57 @@ export default function Login() {
           >
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
+
+          {!showReset && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowReset(true)
+                setResetEmail(email)
+              }}
+              className="min-h-[36px] w-full text-center text-sm font-medium text-amber-700"
+            >
+              Forgot password?
+            </button>
+          )}
         </form>
+
+        {/* Forgot-password: email entry */}
+        {showReset && (
+          <div className="mt-4 rounded-2xl bg-surface p-6 shadow-sm">
+            {resetSent ? (
+              <p className="text-sm text-muted">
+                If an account exists for that email, a reset link has been sent.
+              </p>
+            ) : (
+              <form onSubmit={handleReset} className="space-y-3">
+                <label
+                  htmlFor="reset-email"
+                  className="block text-sm font-medium text-charcoal"
+                >
+                  Reset your password
+                </label>
+                <input
+                  id="reset-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  className="min-h-[44px] w-full rounded-lg border border-surfaceBorder bg-field text-ink placeholder:text-muted px-3 text-base outline-none focus:border-amber focus:ring-1 focus:ring-amber"
+                  placeholder="you@example.com"
+                />
+                <button
+                  type="submit"
+                  disabled={resetSending}
+                  className="min-h-[44px] w-full rounded-lg bg-amber px-4 font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {resetSending ? 'Sending…' : 'Send reset link'}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
 
         <p className="mt-4 text-center text-sm text-muted">
           Need an account?{' '}

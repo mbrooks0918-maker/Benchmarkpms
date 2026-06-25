@@ -19,6 +19,8 @@ const ProjectView = lazy(() => import('./pages/ProjectView'))
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'))
 // Public, no-login change-order signing page.
 const SignChangeOrder = lazy(() => import('./pages/SignChangeOrder'))
+// Public password-reset page (arrived-from-email recovery session).
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 
 function RouteFallback() {
   return (
@@ -42,6 +44,8 @@ export default function App() {
           <Route path="/accept-invite" element={<AcceptInvite />} />
           {/* Public change-order signing — no auth. */}
           <Route path="/sign/:token" element={<SignChangeOrder />} />
+          {/* Public password reset (recovery session from email link). */}
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route
