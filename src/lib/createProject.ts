@@ -1,7 +1,6 @@
 import { supabase } from './supabase'
 import type {
   NewProjectInput,
-  ProjectType,
   TemplateBenchmark,
   TemplateDraw,
   TemplatePhase,
@@ -26,19 +25,19 @@ function fail(context: string, message: string): never {
 }
 
 /**
- * Create a project. For new builds, copy the default scope template into live
- * phases / benchmarks / draws. Renovations are created as a bare project row.
- * Returns the new project's id.
+ * Create a project of a given type (slug). If the type has a default template
+ * (`templateId`), copy its phases / benchmarks / draws into the live project;
+ * a null templateId creates a bare project (no phases). Returns the new id.
  */
 export async function createProject(
-  input: NewProjectInput & { type: ProjectType },
+  input: NewProjectInput & { typeSlug: string; templateId: string | null },
 ): Promise<string> {
-  // 1. Insert the project row.
+  // 1. Insert the project row, tagged with the type's slug.
   const { data: project, error: projectErr } = await supabase
     .from('projects')
     .insert({
       name: input.name,
-      type: input.type,
+      type: input.typeSlug,
       client_name: input.client_name,
       address: input.address,
       total_amount: input.total_amount,
@@ -52,43 +51,16 @@ export async function createProject(
     fail('Could not create project', projectErr?.message ?? 'no row returned')
   }
 
-  // 3. Renovations: nothing more to do.
-  if (input.type !== 'new_build') {
+  // 2. No template for this type (e.g. Renovation) → bare project, done.
+  if (!input.templateId) {
     return project.id
   }
-
-  // 2a. Pick the new-build template by exact name based on the chosen
-  // foundation. Each foundation type has its own scope template.
-  const TEMPLATE_NAME_BY_FOUNDATION: Record<string, string> = {
-    slab: 'New Build — Slab',
-    crawlspace: 'New Build — Crawlspace',
-  }
-  const templateName = input.foundation
-    ? TEMPLATE_NAME_BY_FOUNDATION[input.foundation]
-    : undefined
-  if (!templateName) {
-    fail('Could not load template', 'a foundation type is required for new builds')
-  }
-
-  const { data: template, error: templateErr } = await supabase
-    .from('scope_templates')
-    .select('id')
-    .eq('type', 'new_build')
-    .eq('name', templateName)
-    .maybeSingle()
-
-  if (templateErr) {
-    fail('Could not load template', templateErr.message)
-  }
-  // No matching template configured — leave the project as a bare row.
-  if (!template) {
-    return project.id
-  }
+  const templateId = input.templateId
 
   const { data: templatePhases, error: tpErr } = await supabase
     .from('template_phases')
     .select('id, template_id, name, sequence_order, nahb_code, default_duration_days')
-    .eq('template_id', template.id)
+    .eq('template_id', templateId)
     .order('sequence_order', { ascending: true })
 
   if (tpErr) fail('Could not load template phases', tpErr.message)
@@ -112,7 +84,7 @@ export async function createProject(
     .select(
       'id, template_id, label, sequence_order, template_phase_id, template_benchmark_id, amount_type, amount_value',
     )
-    .eq('template_id', template.id)
+    .eq('template_id', templateId)
     .order('sequence_order', { ascending: true })
 
   if (tdErr) fail('Could not load template draws', tdErr.message)

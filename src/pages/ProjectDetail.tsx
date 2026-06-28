@@ -28,7 +28,6 @@ import type {
   Phase,
   Project,
   ProjectDrawCheck,
-  ProjectType,
 } from '../lib/types'
 
 const usd = new Intl.NumberFormat('en-US', {
@@ -37,9 +36,20 @@ const usd = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 })
 
-const TYPE_LABELS: Record<ProjectType, string> = {
-  new_build: 'New Build',
-  renovation: 'Renovation',
+// Display label for a project type slug; humanizes unknown/custom slugs.
+function typeLabel(slug: string): string {
+  const known: Record<string, string> = {
+    new_build: 'New Build',
+    renovation: 'Renovation',
+  }
+  return (
+    known[slug] ??
+    slug
+      .split(/[_-]/)
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+  )
 }
 
 // "+$5,000" for an add, "-$5,000" for a credit, "$0" for no change.
@@ -495,7 +505,7 @@ export default function ProjectDetail() {
             {project.name}
           </h1>
           <span className="shrink-0 rounded-full border border-surfaceBorder px-2.5 py-1 text-xs font-medium text-muted">
-            {TYPE_LABELS[project.type]}
+            {typeLabel(project.type)}
           </span>
         </div>
 

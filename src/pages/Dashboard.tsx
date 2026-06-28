@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type {
+  OrgProjectType,
   Project,
   ProjectLastActivity,
   ProjectProgress,
-  ProjectType,
   Selection,
 } from '../lib/types'
 import { daysSince, formatDate } from '../lib/format'
@@ -19,9 +19,13 @@ const usd = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 })
 
-const TYPE_LABELS: Record<ProjectType, string> = {
-  new_build: 'New Build',
-  renovation: 'Renovation',
+/** Fallback display name for a slug with no matching project_types row. */
+function humanizeSlug(slug: string): string {
+  return slug
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 function ActivityLine({ lastActivity }: { lastActivity: string | null }) {
@@ -187,10 +191,12 @@ function ProjectCard({
 
 function CompletedCard({
   project,
+  typeLabel,
   showMoney,
   onDelete,
 }: {
   project: Project
+  typeLabel: string
   showMoney: boolean
   onDelete: (project: Project) => void
 }) {
@@ -203,7 +209,7 @@ function CompletedCard({
         <div className="flex items-start justify-between gap-3">
           <h3 className="font-semibold text-charcoal">{project.name}</h3>
           <span className="shrink-0 rounded-full border border-surfaceBorder px-2 py-0.5 text-xs font-medium text-muted">
-            {TYPE_LABELS[project.type]}
+            {typeLabel}
           </span>
         </div>
         {project.address && (
@@ -254,7 +260,6 @@ function CompletedCard({
 
 interface SectionProps {
   title: string
-  type: ProjectType
   projects: Project[]
   lastActivityByProject: Record<string, string | null>
   progressByProject: Record<string, ProjectProgress>
@@ -268,7 +273,6 @@ interface SectionProps {
 
 function Section({
   title,
-  type,
   projects,
   lastActivityByProject,
   progressByProject,
@@ -279,7 +283,7 @@ function Section({
   onDelete,
   onUpdated,
 }: SectionProps) {
-  const addLabel = type === 'new_build' ? '+ New Build' : '+ Renovation'
+  const addLabel = `+ ${title}`
   return (
     <section className="mb-8">
       <div className="mb-3 flex items-center gap-3">
@@ -335,9 +339,11 @@ export default function Dashboard() {
     Record<string, number>
   >({})
   const [catalogTotal, setCatalogTotal] = useState(31)
+  // The org's categories — one dashboard section per row, in sequence_order.
+  const [projectTypes, setProjectTypes] = useState<OrgProjectType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [modalType, setModalType] = useState<ProjectType | null>(null)
+  const [modalType, setModalType] = useState<OrgProjectType | null>(null)
   const [view, setView] = useState<'active' | 'completed'>('active')
 
   const load = useCallback(async () => {
@@ -346,20 +352,35 @@ export default function Dashboard() {
     // Fetch projects and the activity view in parallel. The view gives us the
     // most recent activity per project in a single query (mapped by id below),
     // rather than one request per card.
-    const [projectsRes, activityRes, progressRes, selectionsRes, catalogRes] =
-      await Promise.all([
-        supabase
-          .from('projects')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase.from('project_last_activity').select('*'),
-        supabase.from('project_progress').select('*'),
-        // One query for every card's counter: tally answered-or-N/A per project.
-        supabase.from('selections').select('project_id, value, is_na'),
-        supabase
-          .from('catalog_categories')
-          .select('id', { count: 'exact', head: true }),
-      ])
+    const [
+      projectsRes,
+      activityRes,
+      progressRes,
+      selectionsRes,
+      catalogRes,
+      typesRes,
+    ] = await Promise.all([
+      supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      supabase.from('project_last_activity').select('*'),
+      supabase.from('project_progress').select('*'),
+      // One query for every card's counter: tally answered-or-N/A per project.
+      supabase.from('selections').select('project_id, value, is_na'),
+      supabase
+        .from('catalog_categories')
+        .select('id', { count: 'exact', head: true }),
+      // Org categories drive the dashboard sections (in sequence_order).
+      supabase
+        .from('project_types')
+        .select('id, name, slug, default_template_id, sequence_order')
+        .order('sequence_order', { ascending: true }),
+    ])
+
+    if (!typesRes.error) {
+      setProjectTypes((typesRes.data ?? []) as OrgProjectType[])
+    }
 
     if (projectsRes.error) {
       setError(projectsRes.error.message)
@@ -435,8 +456,10 @@ export default function Dashboard() {
 
   // Active view shows everything that isn't complete (active + on_hold).
   const activeProjects = projects.filter((p) => p.status !== 'complete')
-  const newBuilds = activeProjects.filter((p) => p.type === 'new_build')
-  const renovations = activeProjects.filter((p) => p.type === 'renovation')
+
+  // Slug → display name, for labeling completed cards by their type.
+  const nameBySlug: Record<string, string> = {}
+  for (const pt of projectTypes) nameBySlug[pt.slug] = pt.name
 
   // Completed view: a single combined list, newest completion first.
   const completedProjects = projects
@@ -480,34 +503,27 @@ export default function Dashboard() {
           Failed to load projects: {error}
         </p>
       ) : view === 'active' ? (
-        <>
-          <Section
-            title="New Builds"
-            type="new_build"
-            projects={newBuilds}
-            lastActivityByProject={lastActivityByProject}
-            progressByProject={progressByProject}
-            selectionsByProject={selectionsByProject}
-            catalogTotal={catalogTotal}
-            showMoney={isOwner}
-            onAdd={() => setModalType('new_build')}
-            onDelete={handleDelete}
-            onUpdated={load}
-          />
-          <Section
-            title="Renovations"
-            type="renovation"
-            projects={renovations}
-            lastActivityByProject={lastActivityByProject}
-            progressByProject={progressByProject}
-            selectionsByProject={selectionsByProject}
-            catalogTotal={catalogTotal}
-            showMoney={isOwner}
-            onAdd={() => setModalType('renovation')}
-            onDelete={handleDelete}
-            onUpdated={load}
-          />
-        </>
+        projectTypes.length === 0 ? (
+          <p className="text-sm text-muted">No project types configured yet.</p>
+        ) : (
+          <>
+            {projectTypes.map((pt) => (
+              <Section
+                key={pt.id}
+                title={pt.name}
+                projects={activeProjects.filter((p) => p.type === pt.slug)}
+                lastActivityByProject={lastActivityByProject}
+                progressByProject={progressByProject}
+                selectionsByProject={selectionsByProject}
+                catalogTotal={catalogTotal}
+                showMoney={isOwner}
+                onAdd={() => setModalType(pt)}
+                onDelete={handleDelete}
+                onUpdated={load}
+              />
+            ))}
+          </>
+        )
       ) : (
         <section className="mb-8">
           <h2 className="mb-3 text-xl font-semibold text-charcoal">Completed</h2>
@@ -521,6 +537,7 @@ export default function Dashboard() {
                 <CompletedCard
                   key={p.id}
                   project={p}
+                  typeLabel={nameBySlug[p.type] ?? humanizeSlug(p.type)}
                   showMoney={isOwner}
                   onDelete={handleDelete}
                 />
@@ -532,7 +549,7 @@ export default function Dashboard() {
 
       {modalType && (
         <NewProjectModal
-          type={modalType}
+          projectType={modalType}
           onClose={() => setModalType(null)}
           onCreated={load}
         />

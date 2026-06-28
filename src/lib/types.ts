@@ -6,7 +6,20 @@ export interface Profile {
   role: UserRole
 }
 
-export type ProjectType = 'new_build' | 'renovation'
+/**
+ * A project's category slug (e.g. 'new_build', 'renovation', 'roofing'). Matches
+ * a row in project_types.slug. Open-ended so org-defined custom types work.
+ */
+export type ProjectType = string
+
+/** An org-defined project category (dashboard section / creation source). */
+export interface OrgProjectType {
+  id: string
+  name: string
+  slug: string
+  default_template_id: string | null
+  sequence_order: number
+}
 
 export type ProjectStatus = 'active' | 'on_hold' | 'complete'
 
@@ -33,9 +46,6 @@ export interface Project {
   created_at: string
 }
 
-/** Foundation choice for a new build — selects which scope template to copy. */
-export type FoundationType = 'slab' | 'crawlspace'
-
 export interface NewProjectInput {
   name: string
   client_name: string | null
@@ -43,8 +53,6 @@ export interface NewProjectInput {
   total_amount: number | null
   start_date: string | null
   target_completion_date: string | null
-  /** Required for new builds; ignored for renovations. */
-  foundation?: FoundationType | null
 }
 
 /**

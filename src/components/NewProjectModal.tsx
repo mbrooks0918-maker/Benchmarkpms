@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { createProject } from '../lib/createProject'
 import { supabase } from '../lib/supabase'
-import type { FoundationType, ProjectType } from '../lib/types'
+import type { OrgProjectType } from '../lib/types'
 
 interface Props {
-  type: ProjectType
+  projectType: OrgProjectType
   onClose: () => void
   onCreated: () => void
 }
@@ -14,14 +14,12 @@ interface OrgPm {
   full_name: string | null
 }
 
-const LABELS: Record<ProjectType, string> = {
-  new_build: 'New Build',
-  renovation: 'Renovation',
-}
-
-export default function NewProjectModal({ type, onClose, onCreated }: Props) {
+export default function NewProjectModal({
+  projectType,
+  onClose,
+  onCreated,
+}: Props) {
   const [name, setName] = useState('')
-  const [foundation, setFoundation] = useState<FoundationType | null>(null)
   const [clientName, setClientName] = useState('')
   const [street, setStreet] = useState('')
   const [city, setCity] = useState('')
@@ -68,10 +66,6 @@ export default function NewProjectModal({ type, onClose, onCreated }: Props) {
       setError('Name is required.')
       return
     }
-    if (type === 'new_build' && !foundation) {
-      setError('Please choose a foundation type (Slab or Crawlspace).')
-      return
-    }
     setError(null)
     setSubmitting(true)
 
@@ -84,9 +78,9 @@ export default function NewProjectModal({ type, onClose, onCreated }: Props) {
 
     try {
       const newId = await createProject({
-        type,
+        typeSlug: projectType.slug,
+        templateId: projectType.default_template_id,
         name: name.trim(),
-        foundation: type === 'new_build' ? foundation : null,
         client_name: clientName.trim() || null,
         address,
         total_amount: totalAmount ? Number(totalAmount) : null,
@@ -132,7 +126,7 @@ export default function NewProjectModal({ type, onClose, onCreated }: Props) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-charcoal">
-            New {LABELS[type]}
+            New {projectType.name}
           </h2>
           <button
             type="button"
@@ -157,39 +151,6 @@ export default function NewProjectModal({ type, onClose, onCreated }: Props) {
               autoFocus
             />
           </div>
-
-          {type === 'new_build' && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-charcoal">
-                Foundation <span className="text-amber">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {(
-                  [
-                    { value: 'slab', label: 'Slab' },
-                    { value: 'crawlspace', label: 'Crawlspace' },
-                  ] as { value: FoundationType; label: string }[]
-                ).map((opt) => {
-                  const selected = foundation === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => setFoundation(opt.value)}
-                      className={`min-h-[48px] rounded-lg border px-4 text-base font-medium transition ${
-                        selected
-                          ? 'border-amber bg-amber text-white'
-                          : 'border-surfaceBorder text-charcoal hover:bg-white/5'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
 
           <div>
             <label className="mb-1 block text-sm font-medium text-charcoal">
