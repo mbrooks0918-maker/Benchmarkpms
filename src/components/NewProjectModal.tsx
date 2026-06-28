@@ -56,24 +56,43 @@ export default function NewProjectModal({
   useEffect(() => {
     let active = true
     ;(async () => {
-      const { data } = await supabase
-        .from('scope_templates')
-        .select('id, name, is_custom, is_default')
-        .eq('type', projectType.slug)
-        .order('is_custom')
-        .order('name')
+      const cols = 'id, name, is_custom, is_default'
+      // Fetch by slug, and ALSO fetch the type's default template by id. The
+      // id lookup guarantees the type's preloaded default still shows even if
+      // its slug/type string doesn't match exactly — without it, a type whose
+      // template string differs (e.g. Roofing) would show only "Custom scope".
+      const [byTypeRes, defRes] = await Promise.all([
+        supabase.from('scope_templates').select(cols).eq('type', projectType.slug),
+        projectType.default_template_id
+          ? supabase
+              .from('scope_templates')
+              .select(cols)
+              .eq('id', projectType.default_template_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ])
       if (!active) return
-      const rows = (data ?? []) as ScopeTemplateOption[]
+
+      const rows = [...((byTypeRes.data ?? []) as ScopeTemplateOption[])]
+      const def = (defRes?.data ?? null) as ScopeTemplateOption | null
+      if (def && !rows.some((t) => t.id === def.id)) rows.unshift(def)
+      // Preloaded first, then alphabetical (mirrors the old ordering).
+      rows.sort(
+        (a, b) =>
+          Number(a.is_custom) - Number(b.is_custom) ||
+          a.name.localeCompare(b.name),
+      )
       setTemplates(rows)
-      // Default: the type's default template, else first preloaded, else empty.
-      const def = rows.find((t) => t.is_default)
+
+      // Default selection: the type's default, else first preloaded, else empty.
+      const defaultRow = rows.find((t) => t.is_default)
       const firstPreloaded = rows.find((t) => !t.is_custom)
-      setTemplateId(def?.id ?? firstPreloaded?.id ?? EMPTY_SCOPE)
+      setTemplateId(defaultRow?.id ?? firstPreloaded?.id ?? EMPTY_SCOPE)
     })()
     return () => {
       active = false
     }
-  }, [projectType.slug])
+  }, [projectType.slug, projectType.default_template_id])
 
   useEffect(() => {
     let active = true
