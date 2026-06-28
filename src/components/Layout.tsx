@@ -28,6 +28,12 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               Templates
             </Link>
+            <Link
+              to="/handbook"
+              className="min-h-[36px] inline-flex items-center rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
+            >
+              Handbook
+            </Link>
             <span className="hidden max-w-[10rem] truncate text-sm text-muted sm:inline">
               {displayName}
             </span>
