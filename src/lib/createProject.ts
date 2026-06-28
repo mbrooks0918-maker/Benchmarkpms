@@ -1,24 +1,11 @@
 import { supabase } from './supabase'
+import { addDays, todayISO } from './dates'
 import type {
   NewProjectInput,
   TemplateBenchmark,
   TemplateDraw,
   TemplatePhase,
 } from './types'
-
-/** Local YYYY-MM-DD for "today" (used as a fallback project start date). */
-function todayISO(): string {
-  const now = new Date()
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-  return local.toISOString().slice(0, 10)
-}
-
-/** Add `days` to a YYYY-MM-DD date string, returning YYYY-MM-DD. */
-function addDays(isoDate: string, days: number): string {
-  const d = new Date(`${isoDate}T00:00:00`)
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
-}
 
 function fail(context: string, message: string): never {
   throw new Error(`${context}: ${message}`)

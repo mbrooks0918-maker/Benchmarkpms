@@ -21,6 +21,7 @@ import SelectionsTab from '../components/SelectionsTab'
 import ShareLinks from '../components/ShareLinks'
 import AssignedPMs from '../components/AssignedPMs'
 import { useOrgRole } from '../lib/useOrgRole'
+import { addDays, todayISO } from '../lib/dates'
 import { formatDate } from '../lib/format'
 import type {
   Benchmark,
@@ -57,12 +58,6 @@ function formatSigned(amount: number): string {
   if (amount === 0) return usd.format(0)
   const sign = amount < 0 ? '-' : '+'
   return `${sign}${usd.format(Math.abs(amount))}`
-}
-
-function todayISO(): string {
-  const now = new Date()
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-  return local.toISOString().slice(0, 10)
 }
 
 function fmtDate(iso: string | null): string {
@@ -343,6 +338,211 @@ export default function ProjectDetail() {
         x.id === b.id ? { ...x, completed_date: date || null } : x,
       ),
     }))
+  }
+
+  // ── Owner editing: phases & benchmarks ────────────────────────────────────
+
+  /**
+   * Swap sequence_order between two rows via a temporary value, so a unique
+   * (parent, sequence_order) ordering key is never transiently violated.
+   */
+  const swapSequence = async (
+    table: 'phases' | 'benchmarks',
+    a: { id: string; sequence_order: number },
+    b: { id: string; sequence_order: number },
+    tempSeq: number,
+  ): Promise<string | null> => {
+    const r1 = await supabase
+      .from(table)
+      .update({ sequence_order: tempSeq })
+      .eq('id', a.id)
+    if (r1.error) return r1.error.message
+    const r2 = await supabase
+      .from(table)
+      .update({ sequence_order: a.sequence_order })
+      .eq('id', b.id)
+    if (r2.error) return r2.error.message
+    const r3 = await supabase
+      .from(table)
+      .update({ sequence_order: b.sequence_order })
+      .eq('id', a.id)
+    return r3.error ? r3.error.message : null
+  }
+
+  const onAddPhase = async () => {
+    if (!project) return
+    const name = window.prompt('Phase name')?.trim()
+    if (!name) return
+    setError(null)
+    const maxSeq = phases.reduce(
+      (m, p) => Math.max(m, p.sequence_order ?? 0),
+      0,
+    )
+    // New phase gets a 7-day window after the last phase (or the project start).
+    const last = phases.length ? phases[phases.length - 1] : null
+    const start = last?.target_end || project.start_date || todayISO()
+    const end = addDays(start, 7)
+    const { error: insErr } = await supabase.from('phases').insert({
+      project_id: project.id,
+      name,
+      sequence_order: maxSeq + 1,
+      nahb_code: null,
+      target_start: start,
+      target_end: end,
+      baseline_start: start,
+      baseline_end: end,
+    })
+    if (insErr) {
+      setError(insErr.message)
+      return
+    }
+    await loadAll()
+  }
+
+  const onRenamePhase = async (phase: Phase) => {
+    const name = window.prompt('Rename phase', phase.name)?.trim()
+    if (!name || name === phase.name) return
+    setError(null)
+    const { error: updErr } = await supabase
+      .from('phases')
+      .update({ name })
+      .eq('id', phase.id)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    await loadAll()
+  }
+
+  const onDeletePhase = async (phase: Phase) => {
+    if (!window.confirm('Delete this phase and all its items?')) return
+    setError(null)
+    // Remove this phase's benchmarks first, then the phase.
+    const { error: bErr } = await supabase
+      .from('benchmarks')
+      .delete()
+      .eq('phase_id', phase.id)
+    if (bErr) {
+      setError(bErr.message)
+      return
+    }
+    const { error: pErr } = await supabase
+      .from('phases')
+      .delete()
+      .eq('id', phase.id)
+    if (pErr) {
+      setError(pErr.message)
+      return
+    }
+    await loadAll()
+  }
+
+  const onMovePhase = async (phase: Phase, dir: 'up' | 'down') => {
+    const idx = phases.findIndex((p) => p.id === phase.id)
+    const j = dir === 'up' ? idx - 1 : idx + 1
+    if (idx < 0 || j < 0 || j >= phases.length) return
+    setError(null)
+    const tempSeq =
+      phases.reduce((m, p) => Math.max(m, p.sequence_order ?? 0), 0) + 1
+    const err = await swapSequence('phases', phase, phases[j], tempSeq)
+    if (err) {
+      setError(err)
+      return
+    }
+    await loadAll()
+  }
+
+  const onAddBenchmark = async (phaseId: string) => {
+    const name = window.prompt('Item name')?.trim()
+    if (!name) return
+    setError(null)
+    const arr = benchmarksByPhase[phaseId] ?? []
+    const maxSeq = arr.reduce((m, x) => Math.max(m, x.sequence_order ?? 0), 0)
+    const { error: insErr } = await supabase.from('benchmarks').insert({
+      phase_id: phaseId,
+      name,
+      sequence_order: maxSeq + 1,
+      is_inspection: false,
+      is_procurement: false,
+      completed: false,
+      not_applicable: false,
+    })
+    if (insErr) {
+      setError(insErr.message)
+      return
+    }
+    await refreshPhase(phaseId)
+  }
+
+  const onRenameBenchmark = async (b: Benchmark) => {
+    const name = window.prompt('Rename item', b.name)?.trim()
+    if (!name || name === b.name) return
+    setError(null)
+    const { error: updErr } = await supabase
+      .from('benchmarks')
+      .update({ name })
+      .eq('id', b.id)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    await refreshPhase(b.phase_id)
+  }
+
+  const onDeleteBenchmark = async (b: Benchmark) => {
+    if (!window.confirm('Delete this item?')) return
+    setError(null)
+    const { error: delErr } = await supabase
+      .from('benchmarks')
+      .delete()
+      .eq('id', b.id)
+    if (delErr) {
+      setError(delErr.message)
+      return
+    }
+    await refreshPhase(b.phase_id)
+  }
+
+  const onToggleInspection = async (b: Benchmark) => {
+    setError(null)
+    const { error: updErr } = await supabase
+      .from('benchmarks')
+      .update({ is_inspection: !b.is_inspection })
+      .eq('id', b.id)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    await refreshPhase(b.phase_id)
+  }
+
+  const onToggleProcurement = async (b: Benchmark) => {
+    setError(null)
+    const { error: updErr } = await supabase
+      .from('benchmarks')
+      .update({ is_procurement: !b.is_procurement })
+      .eq('id', b.id)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    await refreshPhase(b.phase_id)
+  }
+
+  const onMoveBenchmark = async (b: Benchmark, dir: 'up' | 'down') => {
+    const arr = benchmarksByPhase[b.phase_id] ?? []
+    const idx = arr.findIndex((x) => x.id === b.id)
+    const j = dir === 'up' ? idx - 1 : idx + 1
+    if (idx < 0 || j < 0 || j >= arr.length) return
+    setError(null)
+    const tempSeq =
+      arr.reduce((m, x) => Math.max(m, x.sequence_order ?? 0), 0) + 1
+    const err = await swapSequence('benchmarks', b, arr[j], tempSeq)
+    if (err) {
+      setError(err)
+      return
+    }
+    await refreshPhase(b.phase_id)
   }
 
   const onAddDraw = async (phase: Phase) => {
@@ -689,13 +889,24 @@ export default function ProjectDetail() {
               }`
         }
       >
+        {isOwner && (
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={onAddPhase}
+              className="min-h-[40px] rounded-lg border border-dashed border-surfaceBorder px-3 text-sm font-medium text-amber-700 transition hover:bg-amber/5"
+            >
+              + Add phase
+            </button>
+          </div>
+        )}
         {phases.length === 0 ? (
           <div className="rounded-xl border border-dashed border-surfaceBorder bg-surface/40 p-6 text-center text-sm text-muted">
             No phases for this project.
           </div>
         ) : (
           <div className="space-y-3">
-            {phases.map((phase) => {
+            {phases.map((phase, phaseIdx) => {
               const isOpen = expanded.has(phase.id)
               const benches = benchmarksByPhase[phase.id] ?? []
               const phaseDraws = drawsByPhase.get(phase.id) ?? []
@@ -742,6 +953,44 @@ export default function ProjectDetail() {
                     </div>
                   </button>
 
+                  {/* Owner phase controls — kept outside the expand button. */}
+                  {isOwner && (
+                    <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
+                      <button
+                        type="button"
+                        onClick={() => onMovePhase(phase, 'up')}
+                        disabled={phaseIdx === 0}
+                        aria-label="Move phase up"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-surfaceBorder text-muted transition hover:bg-white/5 disabled:opacity-40"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onMovePhase(phase, 'down')}
+                        disabled={phaseIdx === phases.length - 1}
+                        aria-label="Move phase down"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-surfaceBorder text-muted transition hover:bg-white/5 disabled:opacity-40"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRenamePhase(phase)}
+                        className="min-h-[36px] rounded-lg border border-surfaceBorder px-3 text-xs font-medium text-charcoal transition hover:bg-white/5"
+                      >
+                        Rename
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeletePhase(phase)}
+                        className="min-h-[36px] rounded-lg border border-surfaceBorder px-3 text-xs font-medium text-danger transition hover:bg-danger/10"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+
                   {isOpen && (
                     <>
                   {/* Phase-anchored draws — owner only (money) */}
@@ -776,7 +1025,7 @@ export default function ProjectDetail() {
                           No benchmarks.
                         </li>
                       )}
-                      {benches.map((b) => {
+                      {benches.map((b, bIdx) => {
                         const benchDraws = drawsByBenchmark.get(b.id) ?? []
                         const isNA = b.not_applicable
                         return (
@@ -887,6 +1136,73 @@ export default function ProjectDetail() {
                                 benchmarkId={b.id}
                                 authorId={session?.user?.id ?? null}
                               />
+
+                              {/* Owner item controls */}
+                              {isOwner && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    aria-pressed={b.is_inspection}
+                                    onClick={() => onToggleInspection(b)}
+                                    className={`min-h-[36px] rounded-lg border px-2.5 text-[11px] font-semibold uppercase tracking-wide transition ${
+                                      b.is_inspection
+                                        ? 'border-amber bg-amber/10 text-amber-700'
+                                        : 'border-surfaceBorder text-muted hover:bg-white/5'
+                                    }`}
+                                  >
+                                    Inspection
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-pressed={b.is_procurement}
+                                    onClick={() => onToggleProcurement(b)}
+                                    className={`min-h-[36px] rounded-lg border px-2.5 text-[11px] font-semibold uppercase tracking-wide transition ${
+                                      b.is_procurement
+                                        ? 'border-surfaceBorder text-amber-700'
+                                        : 'border-surfaceBorder text-muted hover:bg-white/5'
+                                    }`}
+                                    style={
+                                      b.is_procurement
+                                        ? { color: '#6BA8E5', borderColor: '#6BA8E5' }
+                                        : undefined
+                                    }
+                                  >
+                                    Procurement
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onMoveBenchmark(b, 'up')}
+                                    disabled={bIdx === 0}
+                                    aria-label="Move item up"
+                                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-surfaceBorder text-muted transition hover:bg-white/5 disabled:opacity-40"
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onMoveBenchmark(b, 'down')}
+                                    disabled={bIdx === benches.length - 1}
+                                    aria-label="Move item down"
+                                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-surfaceBorder text-muted transition hover:bg-white/5 disabled:opacity-40"
+                                  >
+                                    ↓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onRenameBenchmark(b)}
+                                    className="min-h-[36px] rounded-lg border border-surfaceBorder px-2.5 text-[11px] font-medium text-charcoal transition hover:bg-white/5"
+                                  >
+                                    Rename
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteBenchmark(b)}
+                                    className="min-h-[36px] rounded-lg border border-surfaceBorder px-2.5 text-[11px] font-medium text-danger transition hover:bg-danger/10"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
                             </div>
 
                             {/* N/A toggle — hidden once the step is completed. */}
@@ -909,6 +1225,17 @@ export default function ProjectDetail() {
                         )
                       })}
                     </ul>
+                    {isOwner && (
+                      <div className="border-t border-surfaceBorder/60 px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => onAddBenchmark(phase.id)}
+                          className="min-h-[36px] rounded-lg border border-dashed border-surfaceBorder px-3 text-sm font-medium text-amber-700 transition hover:bg-amber/5"
+                        >
+                          + Add item
+                        </button>
+                      </div>
+                    )}
                     </>
                   )}
                 </div>
