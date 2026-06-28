@@ -452,7 +452,18 @@ export default function Dashboard() {
     const inviteToken = localStorage.getItem('pending_invite_token')
     if (!inviteToken) return
     ;(async () => {
-      await supabase.rpc('accept_invite', { p_token: inviteToken })
+      const { error: acceptErr } = await supabase.rpc('accept_invite', {
+        p_token: inviteToken,
+      })
+      if (acceptErr) {
+        // Don't strand the user: keep the token so the next load retries
+        // (accept_invite is idempotent). Clearing it on failure was the bug.
+        console.error(
+          'Pending invite not completed yet; will retry:',
+          acceptErr.message,
+        )
+        return
+      }
       localStorage.removeItem('pending_invite_token')
       load()
     })()

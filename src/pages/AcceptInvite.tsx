@@ -76,11 +76,15 @@ export default function AcceptInvite() {
       const { error: acceptErr } = await supabase.rpc('accept_invite', {
         p_token: token,
       })
-      localStorage.removeItem(PENDING_KEY)
       if (acceptErr) {
-        setError(acceptErr.message)
-        setSubmitting(false)
-        return
+        // Keep the token (don't strand): the Dashboard retries the idempotent
+        // accept on load. Route in either way so that retry can run.
+        console.error(
+          'accept_invite failed at signup; will retry after redirect:',
+          acceptErr.message,
+        )
+      } else {
+        localStorage.removeItem(PENDING_KEY)
       }
       // Full reload so the app picks up the new session + membership.
       setDone(true)
