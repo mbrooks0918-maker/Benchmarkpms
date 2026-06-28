@@ -14,6 +14,16 @@ interface OrgPm {
   full_name: string | null
 }
 
+interface ScopeTemplateOption {
+  id: string
+  name: string
+  is_custom: boolean
+  is_default: boolean
+}
+
+// Sentinel select value for "Custom scope (start empty)" → templateId null.
+const EMPTY_SCOPE = ''
+
 export default function NewProjectModal({
   projectType,
   onClose,
@@ -34,6 +44,32 @@ export default function NewProjectModal({
   // Project managers in this org, for the assignment picker.
   const [pms, setPms] = useState<OrgPm[]>([])
   const [selectedPms, setSelectedPms] = useState<Set<string>>(new Set())
+
+  // Templates available for this project type.
+  const [templates, setTemplates] = useState<ScopeTemplateOption[]>([])
+  const [templateId, setTemplateId] = useState<string>(EMPTY_SCOPE)
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const { data } = await supabase
+        .from('scope_templates')
+        .select('id, name, is_custom, is_default')
+        .eq('type', projectType.slug)
+        .order('is_custom')
+        .order('name')
+      if (!active) return
+      const rows = (data ?? []) as ScopeTemplateOption[]
+      setTemplates(rows)
+      // Default: the type's default template, else first preloaded, else empty.
+      const def = rows.find((t) => t.is_default)
+      const firstPreloaded = rows.find((t) => !t.is_custom)
+      setTemplateId(def?.id ?? firstPreloaded?.id ?? EMPTY_SCOPE)
+    })()
+    return () => {
+      active = false
+    }
+  }, [projectType.slug])
 
   useEffect(() => {
     let active = true
@@ -79,7 +115,7 @@ export default function NewProjectModal({
     try {
       const newId = await createProject({
         typeSlug: projectType.slug,
-        templateId: projectType.default_template_id,
+        templateId: templateId || null,
         name: name.trim(),
         client_name: clientName.trim() || null,
         address,
@@ -150,6 +186,42 @@ export default function NewProjectModal({
               required
               autoFocus
             />
+          </div>
+
+          {/* Template picker — preloaded + custom groups + empty scope */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-charcoal">
+              Template
+            </label>
+            <select
+              className={inputClass}
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+            >
+              {templates.some((t) => !t.is_custom) && (
+                <optgroup label="Preloaded">
+                  {templates
+                    .filter((t) => !t.is_custom)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
+              {templates.some((t) => t.is_custom) && (
+                <optgroup label="Custom Templates">
+                  {templates
+                    .filter((t) => t.is_custom)
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
+              <option value={EMPTY_SCOPE}>Custom scope (start empty)</option>
+            </select>
           </div>
 
           <div>
