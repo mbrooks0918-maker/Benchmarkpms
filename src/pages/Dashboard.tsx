@@ -104,7 +104,7 @@ function ProjectCard({
   lastActivity,
   progress,
   selectionCount,
-  catalogTotal,
+  catalogCountByList,
   showMoney,
   onDelete,
   onUpdated,
@@ -113,11 +113,14 @@ function ProjectCard({
   lastActivity: string | null
   progress: ProjectProgress | undefined
   selectionCount: number
-  catalogTotal: number
+  catalogCountByList: Record<string, number>
   showMoney: boolean
   onDelete: (project: Project) => void
   onUpdated: () => void
 }) {
+  const selectionTotal = project.selection_template_id
+    ? (catalogCountByList[project.selection_template_id] ?? 0)
+    : 0
   return (
     <div className="relative rounded-xl border border-surfaceBorder bg-surface shadow-sm transition hover:border-amber/40 hover:shadow">
       {/* Status headline band — editable, kept outside the navigation link. */}
@@ -149,9 +152,9 @@ function ProjectCard({
           </p>
         )}
         <ProgressLine progress={progress} />
-        {project.type === 'new_build' && (
+        {project.selection_template_id && (
           <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber/10 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-            Selections: {selectionCount} / {catalogTotal}
+            Selections: {selectionCount} / {selectionTotal}
           </p>
         )}
         <ActivityLine lastActivity={lastActivity} />
@@ -264,7 +267,7 @@ interface SectionProps {
   lastActivityByProject: Record<string, string | null>
   progressByProject: Record<string, ProjectProgress>
   selectionsByProject: Record<string, number>
-  catalogTotal: number
+  catalogCountByList: Record<string, number>
   showMoney: boolean
   onAdd: () => void
   onDelete: (project: Project) => void
@@ -277,7 +280,7 @@ function Section({
   lastActivityByProject,
   progressByProject,
   selectionsByProject,
-  catalogTotal,
+  catalogCountByList,
   showMoney,
   onAdd,
   onDelete,
@@ -312,7 +315,7 @@ function Section({
               lastActivity={lastActivityByProject[p.id] ?? null}
               progress={progressByProject[p.id]}
               selectionCount={selectionsByProject[p.id] ?? 0}
-              catalogTotal={catalogTotal}
+              catalogCountByList={catalogCountByList}
               showMoney={showMoney}
               onDelete={onDelete}
               onUpdated={onUpdated}
@@ -338,7 +341,10 @@ export default function Dashboard() {
   const [selectionsByProject, setSelectionsByProject] = useState<
     Record<string, number>
   >({})
-  const [catalogTotal, setCatalogTotal] = useState(31)
+  // Question count per selection list (denominator for each card's counter).
+  const [catalogCountByList, setCatalogCountByList] = useState<
+    Record<string, number>
+  >({})
   // The org's categories — one dashboard section per row, in sequence_order.
   const [projectTypes, setProjectTypes] = useState<OrgProjectType[]>([])
   const [loading, setLoading] = useState(true)
@@ -368,9 +374,8 @@ export default function Dashboard() {
       supabase.from('project_progress').select('*'),
       // One query for every card's counter: tally answered-or-N/A per project.
       supabase.from('selections').select('project_id, value, is_na'),
-      supabase
-        .from('catalog_categories')
-        .select('id', { count: 'exact', head: true }),
+      // Question counts per selection list, for each card's "X / N" denominator.
+      supabase.from('catalog_categories').select('selection_template_id'),
       // Org categories drive the dashboard sections (in sequence_order).
       supabase
         .from('project_types')
@@ -420,7 +425,19 @@ export default function Dashboard() {
       setSelectionsByProject(map)
     }
 
-    if (catalogRes.count != null) setCatalogTotal(catalogRes.count)
+    if (!catalogRes.error) {
+      const rows = (catalogRes.data ?? []) as {
+        selection_template_id: string | null
+      }[]
+      const map: Record<string, number> = {}
+      for (const row of rows) {
+        if (row.selection_template_id) {
+          map[row.selection_template_id] =
+            (map[row.selection_template_id] ?? 0) + 1
+        }
+      }
+      setCatalogCountByList(map)
+    }
 
     setLoading(false)
   }, [])
@@ -515,7 +532,7 @@ export default function Dashboard() {
                 lastActivityByProject={lastActivityByProject}
                 progressByProject={progressByProject}
                 selectionsByProject={selectionsByProject}
-                catalogTotal={catalogTotal}
+                catalogCountByList={catalogCountByList}
                 showMoney={isOwner}
                 onAdd={() => setModalType(pt)}
                 onDelete={handleDelete}

@@ -53,6 +53,34 @@ export default function NewProjectModal({
   const [templates, setTemplates] = useState<ScopeTemplateOption[]>([])
   const [templateId, setTemplateId] = useState<string>(EMPTY_SCOPE)
 
+  // Selection lists (independent of project type); '' = None.
+  const [selectionLists, setSelectionLists] = useState<
+    { id: string; name: string; is_default: boolean }[]
+  >([])
+  const [selectionListId, setSelectionListId] = useState<string>('')
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const { data } = await supabase
+        .from('selection_templates')
+        .select('id, name, is_default')
+        .order('name', { ascending: true })
+      if (!active) return
+      const rows = (data ?? []) as {
+        id: string
+        name: string
+        is_default: boolean
+      }[]
+      setSelectionLists(rows)
+      const def = rows.find((r) => r.is_default)
+      if (def) setSelectionListId(def.id)
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
+
   useEffect(() => {
     let active = true
     ;(async () => {
@@ -135,6 +163,7 @@ export default function NewProjectModal({
       const newId = await createProject({
         typeSlug: projectType.slug,
         templateId: templateIdToUse,
+        selectionTemplateId: selectionListId || null,
         name: name.trim(),
         client_name: clientName.trim() || null,
         address,
@@ -304,6 +333,25 @@ export default function NewProjectModal({
                 </optgroup>
               )}
               <option value={EMPTY_SCOPE}>Custom scope (start empty)</option>
+            </select>
+          </div>
+
+          {/* Selection list picker — independent of the phase template */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-charcoal">
+              Selection list
+            </label>
+            <select
+              className={inputClass}
+              value={selectionListId}
+              onChange={(e) => setSelectionListId(e.target.value)}
+            >
+              <option value="">None</option>
+              {selectionLists.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
             </select>
           </div>
 

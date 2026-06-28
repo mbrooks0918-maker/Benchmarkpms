@@ -15,6 +15,8 @@ interface Props {
   projectId: string
   shareToken: string | null
   clientEmail: string | null
+  /** The selection list this project uses; questions load from it. */
+  selectionTemplateId: string | null
   /** When inside a collapsible panel, the panel supplies the title. */
   embedded?: boolean
   /** Reports the live progress count to a parent (e.g. for a collapsed header). */
@@ -76,6 +78,7 @@ export default function SelectionsTab({
   projectId,
   shareToken,
   clientEmail,
+  selectionTemplateId,
   embedded = false,
   onCount,
 }: Props) {
@@ -137,15 +140,23 @@ export default function SelectionsTab({
     await resolveImageUrls(rows)
   }, [projectId, resolveImageUrls])
 
-  // Initial load: catalog + selections.
+  // Initial load: catalog (for this project's list) + selections.
   useEffect(() => {
     let active = true
     ;(async () => {
       setLoading(true)
+      if (!selectionTemplateId) {
+        await loadSelections()
+        if (!active) return
+        setCatalog([])
+        setLoading(false)
+        return
+      }
       const [catRes] = await Promise.all([
         supabase
           .from('catalog_categories')
           .select('*')
+          .eq('selection_template_id', selectionTemplateId)
           .order('sort_order', { ascending: true }),
         loadSelections(),
       ])
@@ -157,7 +168,7 @@ export default function SelectionsTab({
     return () => {
       active = false
     }
-  }, [loadSelections])
+  }, [loadSelections, selectionTemplateId])
 
   // Realtime: live-update answers as the client fills them in. If the channel
   // errors or closes, fall back to polling so the view never sits stale.
@@ -361,6 +372,11 @@ export default function SelectionsTab({
         <div className="flex justify-center py-10">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber border-t-transparent" />
         </div>
+      ) : !selectionTemplateId ? (
+        <p className="text-sm text-muted">
+          No selection list is assigned to this project. Assign one when creating
+          a project, or build lists on the Selections page.
+        </p>
       ) : (
         <div className="space-y-5">
           {sections.map((sec) => (

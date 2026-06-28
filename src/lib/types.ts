@@ -43,6 +43,8 @@ export interface Project {
   /** Client-facing selections: the client's email and unique public link token. */
   client_email: string | null
   share_token: string | null
+  /** Which selection list (selection_templates row) this project uses. */
+  selection_template_id: string | null
   created_at: string
 }
 
@@ -263,6 +265,7 @@ export type SelectionQType = 'radio' | 'text' | 'yesno'
  */
 export interface CatalogCategory {
   id: string
+  selection_template_id: string | null
   section: string
   sort_order: number
   label: string
@@ -270,6 +273,15 @@ export interface CatalogCategory {
   qtype: SelectionQType | string
   options: string[] | null
   upcharge_note: string | null
+}
+
+/** A reusable selection LIST (set of catalog_categories questions). */
+export interface SelectionTemplate {
+  id: string
+  org_id?: string | null
+  name: string
+  is_default: boolean
+  created_at: string
 }
 
 /**

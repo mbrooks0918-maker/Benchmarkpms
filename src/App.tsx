@@ -12,6 +12,7 @@ const SignUp = lazy(() => import('./pages/SignUp'))
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
 const Team = lazy(() => import('./pages/Team'))
 const Templates = lazy(() => import('./pages/Templates'))
+const Selections = lazy(() => import('./pages/Selections'))
 const Handbook = lazy(() => import('./pages/Handbook'))
 // Public, no-login client selections page (its own chunk).
 const ClientSelections = lazy(() => import('./pages/ClientSelections'))
@@ -86,6 +87,16 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <Templates />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/selections"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Selections />
                 </Layout>
               </ProtectedRoute>
             }

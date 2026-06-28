@@ -29,6 +29,12 @@ export default function Layout({ children }: { children: ReactNode }) {
               Templates
             </Link>
             <Link
+              to="/selections"
+              className="min-h-[36px] inline-flex items-center rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
+            >
+              Selections
+            </Link>
+            <Link
               to="/handbook"
               className="min-h-[36px] inline-flex items-center rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
             >

@@ -17,7 +17,11 @@ function fail(context: string, message: string): never {
  * a null templateId creates a bare project (no phases). Returns the new id.
  */
 export async function createProject(
-  input: NewProjectInput & { typeSlug: string; templateId: string | null },
+  input: NewProjectInput & {
+    typeSlug: string
+    templateId: string | null
+    selectionTemplateId?: string | null
+  },
 ): Promise<string> {
   // 1. Insert the project row, tagged with the type's slug.
   const { data: project, error: projectErr } = await supabase
@@ -30,6 +34,7 @@ export async function createProject(
       total_amount: input.total_amount,
       start_date: input.start_date,
       target_completion_date: input.target_completion_date,
+      selection_template_id: input.selectionTemplateId ?? null,
     })
     .select('id, start_date')
     .single()

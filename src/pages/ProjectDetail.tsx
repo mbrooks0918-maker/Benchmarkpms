@@ -1280,8 +1280,8 @@ export default function ProjectDetail() {
         />
       </CollapsibleSection>
 
-      {/* Selections — New Build only. Read-only view of the client's choices. */}
-      {project.type === 'new_build' && (
+      {/* Selections — any project type that has a selection list assigned. */}
+      {project.selection_template_id && (
         <CollapsibleSection
           title="Selections"
           summary={
@@ -1294,6 +1294,7 @@ export default function ProjectDetail() {
             projectId={project.id}
             shareToken={project.share_token}
             clientEmail={project.client_email}
+            selectionTemplateId={project.selection_template_id}
             embedded
             onCount={(answered, total) =>
               setSelProgress((prev) =>
