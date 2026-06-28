@@ -68,6 +68,8 @@ export interface ScopeTemplate {
   name: string
   type: ProjectType
   is_default: boolean
+  is_custom: boolean
+  org_id?: string | null
 }
 
 export interface TemplatePhase {

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { createProject } from '../lib/createProject'
 import { supabase } from '../lib/supabase'
 import type { OrgProjectType } from '../lib/types'
@@ -29,6 +30,9 @@ export default function NewProjectModal({
   onClose,
   onCreated,
 }: Props) {
+  const navigate = useNavigate()
+  // When "Custom scope" is chosen, offer template-build vs. empty before create.
+  const [showScopeChoice, setShowScopeChoice] = useState(false)
   const [name, setName] = useState('')
   const [clientName, setClientName] = useState('')
   const [street, setStreet] = useState('')
@@ -96,12 +100,8 @@ export default function NewProjectModal({
       return next
     })
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) {
-      setError('Name is required.')
-      return
-    }
+  // Actually create the project with the given template (null = empty scope).
+  const doCreate = async (templateIdToUse: string | null) => {
     setError(null)
     setSubmitting(true)
 
@@ -115,7 +115,7 @@ export default function NewProjectModal({
     try {
       const newId = await createProject({
         typeSlug: projectType.slug,
-        templateId: templateId || null,
+        templateId: templateIdToUse,
         name: name.trim(),
         client_name: clientName.trim() || null,
         address,
@@ -148,6 +148,21 @@ export default function NewProjectModal({
     }
   }
 
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) {
+      setError('Name is required.')
+      return
+    }
+    // "Custom scope (start empty)" → let the owner choose template vs. empty.
+    if (!templateId) {
+      setError(null)
+      setShowScopeChoice(true)
+      return
+    }
+    await doCreate(templateId)
+  }
+
   const inputClass =
     'min-h-[44px] w-full rounded-lg border border-surfaceBorder bg-field text-ink placeholder:text-muted px-3 text-base outline-none focus:border-amber focus:ring-1 focus:ring-amber'
 
@@ -174,6 +189,55 @@ export default function NewProjectModal({
           </button>
         </div>
 
+        {showScopeChoice ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted">
+              No template selected for this job. What would you like to do?
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                onClose()
+                navigate('/templates')
+              }}
+              className="w-full rounded-xl border border-surfaceBorder p-4 text-left transition hover:bg-white/5"
+            >
+              <p className="font-medium text-charcoal">
+                Build a reusable template
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                Go to Templates to create one, then come back and start the job
+                from it.
+              </p>
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => doCreate(null)}
+              className="w-full rounded-xl border border-surfaceBorder p-4 text-left transition hover:bg-white/5 disabled:opacity-60"
+            >
+              <p className="font-medium text-charcoal">
+                {submitting ? 'Creating…' : 'Just start this job empty'}
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                Create the project now with no phases — you can add them on the
+                project page.
+              </p>
+            </button>
+            {error && (
+              <p className="rounded-lg bg-danger/15 px-3 py-2 text-sm text-danger">
+                {error}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowScopeChoice(false)}
+              className="min-h-[44px] w-full rounded-lg border border-surfaceBorder px-4 font-medium text-charcoal transition hover:bg-white/5"
+            >
+              Back
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="mb-1 block text-sm font-medium text-charcoal">
@@ -380,6 +444,7 @@ export default function NewProjectModal({
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   )

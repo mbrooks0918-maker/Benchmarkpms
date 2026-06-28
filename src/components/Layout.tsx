@@ -22,6 +22,12 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               Team
             </Link>
+            <Link
+              to="/templates"
+              className="min-h-[36px] inline-flex items-center rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
+            >
+              Templates
+            </Link>
             <span className="hidden max-w-[10rem] truncate text-sm text-muted sm:inline">
               {displayName}
             </span>
