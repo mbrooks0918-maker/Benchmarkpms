@@ -31,7 +31,9 @@ function roleLabel(role: string): string {
 
 /** Name to show for a member — full_name, or their role label if no name. */
 function memberDisplayName(m: MemberRow): string {
-  return m.full_name?.trim() || roleLabel(m.role)
+  // Always the person's name — never the role. (Email isn't readable client-side,
+  // so a neutral placeholder is used only if a profile has no name at all.)
+  return m.full_name?.trim() || 'Unknown member'
 }
 
 export default function Team() {
@@ -54,6 +56,10 @@ export default function Team() {
 
   // Load the org's pending invites and members (roster is visible to PMs too).
   const loadOrgData = useCallback(async (org: string) => {
+    // The roster comes from org_members_list() — a SECURITY DEFINER RPC that
+    // returns user_id + full_name + role for the caller's org. A direct
+    // profiles query can't read OTHER members' rows (RLS), which is why names
+    // came back empty before.
     const [invRes, memRes] = await Promise.all([
       supabase
         .from('org_invites')
@@ -61,29 +67,20 @@ export default function Team() {
         .eq('org_id', org)
         .eq('accepted', false)
         .order('created_at', { ascending: false }),
-      supabase.from('org_members').select('user_id, role').eq('org_id', org),
+      supabase.rpc('org_members_list'),
     ])
     if (!invRes.error) setInvites((invRes.data ?? []) as OrgInvite[])
 
-    const memberRows = (memRes.data ?? []) as { user_id: string; role: string }[]
-    // Names live in profiles (profiles.id = org_members.user_id). Emails are in
-    // auth.users and not readable from the client, so we only resolve names.
-    const ids = memberRows.map((m) => m.user_id)
-    let nameById = new Map<string, string | null>()
-    if (ids.length > 0) {
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', ids)
-      nameById = new Map(
-        (profs ?? []).map((p) => [p.id as string, p.full_name as string | null]),
-      )
-    }
+    const memberRows = (memRes.data ?? []) as {
+      user_id: string
+      full_name: string | null
+      role: string
+    }[]
     setMembers(
       memberRows.map((m) => ({
         user_id: m.user_id,
         role: m.role,
-        full_name: nameById.get(m.user_id) ?? null,
+        full_name: m.full_name,
       })),
     )
   }, [])
