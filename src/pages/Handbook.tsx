@@ -78,10 +78,15 @@ const OWNER_GUIDE: Section[] = [
     ],
   },
   {
-    heading: 'Client Selections (SelectSheet)',
+    heading: 'Client Selections',
     items: [
-      'For New Builds, share a selections link so clients pick finishes (cabinets, paint, hardware) themselves.',
-      'Their choices save automatically and show up on the project.',
+      'Selections let your clients choose their own finishes — paint colors, cabinets, hardware, flooring, and more — instead of you tracking it all by phone or text.',
+      'Build selection lists on the Selections page (owner only): create a list, add questions, and choose the question type — multiple choice, short text, or yes/no.',
+      'Duplicate any list to make a variation without starting over — for example, a "Standard Finishes" list and a "Premium Finishes" list.',
+      'When you create a project, pick which selection list it uses. Any project type can have one.',
+      "Share the project's selection link with your client. They pick their finishes on their phone or computer, and their choices save automatically — you'll see them on the project.",
+      "Tip: Start from your default list and tweak it per client. Keep option names clear (e.g. exact paint color names) so there's no confusion later.",
+      'Tip: Add an "upcharge note" to any option that costs extra, so clients see the cost before they choose.',
     ],
   },
   {
