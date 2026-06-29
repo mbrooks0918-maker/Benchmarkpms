@@ -287,6 +287,26 @@ export default function ProjectDetail() {
     })
   }
 
+  // Per-phase container refs, so a bottom "Collapse" control can scroll the
+  // now-collapsed header back into view.
+  const phaseRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  const collapseFromBottom = (phaseId: string) => {
+    // Same collapse mechanism the header uses (just remove from the open set).
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      next.delete(phaseId)
+      return next
+    })
+    // After it folds up, land on that phase's header (below the sticky nav).
+    requestAnimationFrame(() => {
+      phaseRefs.current[phaseId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
+  }
+
   const onToggleBenchmark = async (b: Benchmark, completed: boolean) => {
     const { error: updErr } = await supabase
       .from('benchmarks')
@@ -914,7 +934,10 @@ export default function ProjectDetail() {
               return (
                 <div
                   key={phase.id}
-                  className="overflow-hidden rounded-xl border border-surfaceBorder bg-surface shadow-sm"
+                  ref={(el) => {
+                    phaseRefs.current[phase.id] = el
+                  }}
+                  className="scroll-mt-16 overflow-hidden rounded-xl border border-surfaceBorder bg-surface shadow-sm"
                 >
                   <button
                     type="button"
@@ -1236,6 +1259,29 @@ export default function ProjectDetail() {
                         </button>
                       </div>
                     )}
+
+                    {/* Collapse from the bottom — folds the phase and scrolls
+                        its header back into view (anyone can use it). */}
+                    <button
+                      type="button"
+                      onClick={() => collapseFromBottom(phase.id)}
+                      className="flex min-h-[44px] w-full items-center justify-center gap-1.5 border-t border-surfaceBorder/60 px-4 text-sm font-medium text-muted transition hover:bg-white/5 hover:text-ink"
+                    >
+                      Collapse phase
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-4 w-4"
+                        aria-hidden
+                      >
+                        <path d="m18 15-6-6-6 6" />
+                      </svg>
+                    </button>
                     </>
                   )}
                 </div>
