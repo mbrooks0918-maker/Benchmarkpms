@@ -310,15 +310,16 @@ export default function Templates() {
                         ({t.phaseCount} phase{t.phaseCount === 1 ? '' : 's'})
                       </span>
                     </span>
+                    {/* Preloaded templates are editable, but never deletable. */}
                     <div className="flex shrink-0 gap-2">
                       <button
                         type="button"
                         onClick={() =>
-                          setEditing({ id: t.id, name: t.name, editable: false })
+                          setEditing({ id: t.id, name: t.name, editable: true })
                         }
                         className={`${smallBtn} text-charcoal`}
                       >
-                        View
+                        Edit
                       </button>
                       <button
                         type="button"
