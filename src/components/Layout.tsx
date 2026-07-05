@@ -19,6 +19,12 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="flex min-w-0 items-center gap-3">
             <nav className="flex min-w-0 items-center gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <Link
+                to="/overview"
+                className="min-h-[44px] inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
+              >
+                Overview
+              </Link>
+              <Link
                 to="/team"
                 className="min-h-[44px] inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
               >

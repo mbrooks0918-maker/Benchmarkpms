@@ -11,6 +11,7 @@ const Login = lazy(() => import('./pages/Login'))
 const SignUp = lazy(() => import('./pages/SignUp'))
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'))
 const Team = lazy(() => import('./pages/Team'))
+const Overview = lazy(() => import('./pages/Overview'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Selections = lazy(() => import('./pages/Selections'))
 const Handbook = lazy(() => import('./pages/Handbook'))
@@ -67,6 +68,16 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <ProjectDetail />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/overview"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Overview />
                 </Layout>
               </ProtectedRoute>
             }
