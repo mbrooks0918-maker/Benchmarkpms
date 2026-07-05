@@ -565,6 +565,26 @@ export default function ProjectDetail() {
     await refreshPhase(b.phase_id)
   }
 
+  // Move a benchmark to a DIFFERENT phase, landing it at the end (so it never
+  // collides with the target phase's ordering). Completion state is preserved.
+  const onMoveBenchmarkToPhase = async (b: Benchmark, targetPhaseId: string) => {
+    if (!targetPhaseId || targetPhaseId === b.phase_id) return
+    setError(null)
+    const targetArr = benchmarksByPhase[targetPhaseId] ?? []
+    const nextSeq =
+      targetArr.reduce((m, x) => Math.max(m, x.sequence_order ?? 0), 0) + 1
+    const { error: updErr } = await supabase
+      .from('benchmarks')
+      .update({ phase_id: targetPhaseId, sequence_order: nextSeq })
+      .eq('id', b.id)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    // Re-read everything so BOTH phases recompute trigger-owned progress/status.
+    await loadAll()
+  }
+
   const onAddDraw = async (phase: Phase) => {
     if (!id) return
     setError(null)
@@ -1224,6 +1244,26 @@ export default function ProjectDetail() {
                                   >
                                     Delete
                                   </button>
+                                  {/* Cross-phase move — only if there's somewhere to move to. */}
+                                  {phases.length > 1 && (
+                                    <select
+                                      aria-label="Move item to another phase"
+                                      value=""
+                                      onChange={(e) =>
+                                        onMoveBenchmarkToPhase(b, e.target.value)
+                                      }
+                                      className="min-h-[36px] rounded-lg border border-surfaceBorder bg-field px-2 text-[11px] font-medium text-charcoal outline-none focus:border-amber focus:ring-1 focus:ring-amber"
+                                    >
+                                      <option value="">Move to phase…</option>
+                                      {phases
+                                        .filter((p) => p.id !== b.phase_id)
+                                        .map((p) => (
+                                          <option key={p.id} value={p.id}>
+                                            {p.name}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  )}
                                 </div>
                               )}
                             </div>
