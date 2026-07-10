@@ -86,11 +86,16 @@ export default function ChangeOrders({
   const [showForm, setShowForm] = useState(false)
   const [coNumber, setCoNumber] = useState('')
   const [description, setDescription] = useState('')
+  const [customerNote, setCustomerNote] = useState('')
+  const [internalNote, setInternalNote] = useState('')
   const [amount, setAmount] = useState('')
   const [phaseId, setPhaseId] = useState<string>('')
   const [coDate, setCoDate] = useState(todayISO())
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // Per-CO internal-note editing (allowed even on signed/locked COs).
+  const [internalDrafts, setInternalDrafts] = useState<Record<string, string>>({})
+  const [savingInternal, setSavingInternal] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const phaseName = useCallback(
@@ -150,6 +155,8 @@ export default function ChangeOrders({
   const resetForm = () => {
     setCoNumber('')
     setDescription('')
+    setCustomerNote('')
+    setInternalNote('')
     setAmount('')
     setPhaseId('')
     setCoDate(todayISO())
@@ -208,6 +215,8 @@ export default function ChangeOrders({
         phase_id: phaseId || null,
         co_number: coNumber.trim() || null,
         description: description.trim() || null,
+        customer_note: customerNote.trim() || null,
+        internal_note: internalNote.trim() || null,
         amount: amt,
         co_date: coDate || null,
         document_id: documentId,
@@ -359,6 +368,29 @@ export default function ChangeOrders({
     await load()
   }
 
+  // Save ONLY the internal note. Allowed even on a signed/locked CO (the DB
+  // guard permits internal_note changes); other fields stay locked.
+  const onSaveInternalNote = async (co: ChangeOrder) => {
+    const draft = internalDrafts[co.id] ?? ''
+    setSavingInternal(co.id)
+    setError(null)
+    const { error: updErr } = await supabase
+      .from('change_orders')
+      .update({ internal_note: draft.trim() || null })
+      .eq('id', co.id)
+    setSavingInternal(null)
+    if (updErr) {
+      setError(updErr.message)
+      return
+    }
+    setInternalDrafts((prev) => {
+      const next = { ...prev }
+      delete next[co.id]
+      return next
+    })
+    await load()
+  }
+
   // Build + download the signed CO PDF entirely in the browser.
   const downloadSignedCO = async (co: ChangeOrder) => {
     setError(null)
@@ -434,6 +466,14 @@ export default function ChangeOrders({
                 {co.description && (
                   <p className="mt-1 text-sm text-charcoal">{co.description}</p>
                 )}
+                {co.customer_note && (
+                  <p className="mt-1 text-xs text-muted">
+                    <span className="font-semibold uppercase tracking-wide">
+                      Note to customer:{' '}
+                    </span>
+                    <span className="whitespace-pre-wrap">{co.customer_note}</span>
+                  </p>
+                )}
                 <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted">
                   <span>{phaseName(co.phase_id)}</span>
                   <span>·</span>
@@ -450,6 +490,36 @@ export default function ChangeOrders({
                       </button>
                     </>
                   )}
+                </div>
+
+                {/* Internal note — team-only, editable ANY time (even signed). */}
+                <div className="mt-2 rounded-lg border border-surfaceBorder bg-field/60 p-2">
+                  <label className="block text-[10px] font-semibold uppercase tracking-wide text-muted">
+                    Internal note (never shown to the customer)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={internalDrafts[co.id] ?? co.internal_note ?? ''}
+                    onChange={(e) =>
+                      setInternalDrafts((prev) => ({
+                        ...prev,
+                        [co.id]: e.target.value,
+                      }))
+                    }
+                    placeholder="Internal documentation…"
+                    className="mt-1 w-full rounded-lg border border-surfaceBorder bg-field text-ink placeholder:text-muted px-2 py-1 text-sm outline-none focus:border-amber focus:ring-1 focus:ring-amber"
+                  />
+                  {internalDrafts[co.id] !== undefined &&
+                    internalDrafts[co.id] !== (co.internal_note ?? '') && (
+                      <button
+                        type="button"
+                        onClick={() => onSaveInternalNote(co)}
+                        disabled={savingInternal === co.id}
+                        className="mt-1 min-h-[36px] rounded-lg bg-amber px-3 text-xs font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
+                      >
+                        {savingInternal === co.id ? 'Saving…' : 'Save internal note'}
+                      </button>
+                    )}
                 </div>
 
                 {/* E-signing status + controls */}
@@ -704,6 +774,37 @@ export default function ChangeOrders({
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="What changed?"
                 />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-charcoal">
+                  Note to customer (optional)
+                </label>
+                <textarea
+                  rows={2}
+                  className={`${inputClass} py-2`}
+                  value={customerNote}
+                  onChange={(e) => setCustomerNote(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted">
+                  Shown to the customer on the signing page and included on the
+                  signed PDF.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-charcoal">
+                  Internal note (optional)
+                </label>
+                <textarea
+                  rows={2}
+                  className={`${inputClass} py-2`}
+                  value={internalNote}
+                  onChange={(e) => setInternalNote(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted">
+                  For your team only — never shown to the customer or on the PDF.
+                </p>
               </div>
 
               <div>

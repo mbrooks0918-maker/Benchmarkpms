@@ -164,6 +164,10 @@ export interface ChangeOrder {
   document_id: string | null
   created_by: string | null
   created_at: string
+  /** Customer-facing note — shown on the signing page + signed PDF; locks on sign. */
+  customer_note: string | null
+  /** Internal-only note — never shown to the customer/PDF; editable even after sign. */
+  internal_note: string | null
   /** E-signature fields. A signed CO is locked from edits (DB-enforced). */
   sign_token: string | null
   signed_at: string | null

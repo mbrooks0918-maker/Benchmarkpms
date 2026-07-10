@@ -124,6 +124,18 @@ export async function downloadSignedCoPdf(
     y += lines.length * 14 + 8
   }
 
+  // Customer-facing note (wrapped). internal_note is intentionally NEVER here.
+  if (co.customer_note) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('Note:', margin, y)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    const lines = doc.splitTextToSize(co.customer_note, contentW) as string[]
+    doc.text(lines, margin, y + 14)
+    y += 14 + lines.length * 14 + 8
+  }
+
   y += 6
   doc.setDrawColor(200)
   doc.line(margin, y, pageWidth - margin, y)

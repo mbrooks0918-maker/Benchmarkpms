@@ -20,6 +20,7 @@ const usd = new Intl.NumberFormat('en-US', {
 interface SigningInfo {
   co_number: string | null
   description: string | null
+  customer_note: string | null
   amount: number | null
   project_name: string | null
   project_address: string | null
@@ -325,6 +326,16 @@ export default function SignChangeOrder() {
           </div>
           {info.description && (
             <p className="mt-2 text-sm text-charcoal">{info.description}</p>
+          )}
+          {info.customer_note && (
+            <div className="mt-3 rounded-lg border-l-2 border-accent bg-accent/10 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-accent">
+                Note
+              </p>
+              <p className="mt-0.5 whitespace-pre-wrap text-sm text-ink">
+                {info.customer_note}
+              </p>
+            </div>
           )}
         </div>
 
