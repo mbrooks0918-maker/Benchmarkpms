@@ -9,6 +9,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { formatDate } from '../lib/format'
 import { useOrgRole } from '../lib/useOrgRole'
+import { getCachedSignedUrl } from '../lib/signedUrlCache'
 import { downloadSignedCoPdf } from '../lib/signedCoPdf'
 import type { ChangeOrder, Draw, Phase, Project } from '../lib/types'
 
@@ -184,6 +185,7 @@ export default function ChangeOrders({
           .from(BUCKET)
           .upload(path, pendingFile, {
             contentType: pendingFile.type || 'application/octet-stream',
+            cacheControl: '3600',
             upsert: false,
           })
         if (upErr) throw upErr
@@ -270,14 +272,13 @@ export default function ChangeOrders({
     const ref = docById[documentId]
     if (!ref) return
     setError(null)
-    const { data, error: urlErr } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(ref.storage_path, SIGNED_URL_TTL)
-    if (urlErr || !data?.signedUrl) {
-      setError(urlErr?.message ?? 'Could not open document.')
+    // Reuse a cached signed URL so re-opens hit the browser cache (0 egress).
+    const url = await getCachedSignedUrl(BUCKET, ref.storage_path, SIGNED_URL_TTL)
+    if (!url) {
+      setError('Could not open document.')
       return
     }
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   const onDelete = async (co: ChangeOrder) => {

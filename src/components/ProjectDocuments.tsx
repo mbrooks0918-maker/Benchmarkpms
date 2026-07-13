@@ -8,6 +8,7 @@ import {
 import { supabase } from '../lib/supabase'
 import type { DocumentCategory, ProjectDocument } from '../lib/types'
 import { ensureDisplayableImage } from '../lib/heic'
+import { getCachedSignedUrl } from '../lib/signedUrlCache'
 import PdfViewer from './PdfViewer'
 
 const BUCKET = 'project-docs'
@@ -169,6 +170,7 @@ export default function ProjectDocuments({
         .from(BUCKET)
         .upload(path, file, {
           contentType: file.type || 'application/octet-stream',
+          cacheControl: '3600',
           upsert: false,
         })
       if (upErr) throw upErr
@@ -199,14 +201,14 @@ export default function ProjectDocuments({
 
   const onView = async (doc: ProjectDocument) => {
     setError(null)
-    const { data, error: urlErr } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(doc.storage_path, SIGNED_URL_TTL)
-    if (urlErr || !data?.signedUrl) {
-      setError(urlErr?.message ?? 'Could not open document.')
+    // Reuse a cached signed URL so re-opening the same doc is a browser cache
+    // hit (no re-download) instead of a fresh cache-busting URL.
+    const url = await getCachedSignedUrl(BUCKET, doc.storage_path, SIGNED_URL_TTL)
+    if (!url) {
+      setError('Could not open document.')
       return
     }
-    setViewer({ doc, url: data.signedUrl })
+    setViewer({ doc, url })
   }
 
   const onDelete = async (doc: ProjectDocument) => {

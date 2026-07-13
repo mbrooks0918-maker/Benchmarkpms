@@ -8,6 +8,7 @@ import {
 import { supabase } from '../lib/supabase'
 import type { Phase, VendorDoc, VendorDocType } from '../lib/types'
 import { ensureDisplayableImage } from '../lib/heic'
+import { getCachedSignedUrl } from '../lib/signedUrlCache'
 import PdfViewer from './PdfViewer'
 
 const BUCKET = 'vendor-docs'
@@ -172,6 +173,7 @@ export default function VendorDocs({
         .from(BUCKET)
         .upload(path, file, {
           contentType: file.type || 'application/octet-stream',
+          cacheControl: '3600',
           upsert: false,
         })
       if (upErr) throw upErr
@@ -207,14 +209,13 @@ export default function VendorDocs({
 
   const onView = async (doc: VendorDoc) => {
     setError(null)
-    const { data, error: urlErr } = await supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(doc.storage_path, SIGNED_URL_TTL)
-    if (urlErr || !data?.signedUrl) {
-      setError(urlErr?.message ?? 'Could not open document.')
+    // Reuse a cached signed URL so re-opens hit the browser cache (0 egress).
+    const url = await getCachedSignedUrl(BUCKET, doc.storage_path, SIGNED_URL_TTL)
+    if (!url) {
+      setError('Could not open document.')
       return
     }
-    setViewer({ doc, url: data.signedUrl })
+    setViewer({ doc, url })
   }
 
   const onDelete = async (doc: VendorDoc) => {
