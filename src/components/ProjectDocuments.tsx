@@ -8,6 +8,7 @@ import {
 import { supabase } from '../lib/supabase'
 import type { DocumentCategory, ProjectDocument } from '../lib/types'
 import { ensureDisplayableImage } from '../lib/heic'
+import PdfViewer from './PdfViewer'
 
 const BUCKET = 'project-docs'
 const SIGNED_URL_TTL = 60 * 60 // 60 minutes
@@ -522,24 +523,27 @@ export default function ProjectDocuments({
               </div>
 
               {/* Body — clicks on the empty area fall through to close. */}
-              <div className="mx-auto flex w-full max-w-5xl flex-1 items-center justify-center overflow-hidden">
+              <div className="mx-auto w-full max-w-5xl flex-1 overflow-hidden">
                 {isPdf ? (
-                  <iframe
-                    src={viewer.url}
-                    title={doc.file_name}
+                  <div
+                    className="h-full w-full"
                     onClick={(e) => e.stopPropagation()}
-                    className="h-full w-full rounded-lg bg-white"
-                  />
+                  >
+                    {/* All pages, scrollable — works on iOS Safari too. */}
+                    <PdfViewer url={viewer.url} />
+                  </div>
                 ) : isImage ? (
-                  <img
-                    src={viewer.url}
-                    alt={doc.file_name}
-                    onClick={(e) => e.stopPropagation()}
-                    className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
-                  />
+                  <div className="flex h-full w-full items-center justify-center">
+                    <img
+                      src={viewer.url}
+                      alt={doc.file_name}
+                      onClick={(e) => e.stopPropagation()}
+                      className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+                    />
+                  </div>
                 ) : (
                   <div
-                    className="w-full max-w-sm rounded-2xl bg-surface p-6 text-center shadow-xl"
+                    className="mx-auto mt-6 w-full max-w-sm rounded-2xl bg-surface p-6 text-center shadow-xl"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <p className="truncate font-medium text-charcoal">
