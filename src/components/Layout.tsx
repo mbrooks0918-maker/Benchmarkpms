@@ -1,18 +1,23 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useOrgRole } from '../lib/useOrgRole'
 import wordmark from '../assets/benchmark_logo_darkmode.png'
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { profile, session, signOut } = useAuth()
+  const { isOwner, loading: roleLoading } = useOrgRole()
   const displayName =
     profile?.full_name || session?.user?.email || 'Signed in'
+  // Home follows the role. While the role loads, point at "/" so the root
+  // redirect resolves it correctly rather than guessing.
+  const homeTo = roleLoading ? '/' : isOwner ? '/overview' : '/dashboard'
 
   return (
     <div className="min-h-screen bg-app">
       <header className="sticky top-0 z-10 border-b border-surfaceBorder bg-surface">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-3 px-4">
-          <Link to="/" aria-label="Dashboard" className="shrink-0">
+          <Link to={homeTo} aria-label="Home" className="shrink-0">
             <img src={wordmark} alt="BenchMark" className="h-7 w-auto" />
           </Link>
           {/* Right cluster can shrink; the links scroll, Sign out stays pinned. */}
@@ -23,6 +28,12 @@ export default function Layout({ children }: { children: ReactNode }) {
                 className="min-h-[44px] inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
               >
                 Overview
+              </Link>
+              <Link
+                to="/dashboard"
+                className="min-h-[44px] inline-flex shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-sm font-medium text-charcoal transition hover:bg-white/5"
+              >
+                Dashboard
               </Link>
               <Link
                 to="/team"

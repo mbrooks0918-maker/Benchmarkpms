@@ -144,6 +144,9 @@ export default function ProjectDetail() {
   const { session } = useAuth()
   // PMs see schedule/docs/change-orders but not draws or contract-total money.
   const { isOwner } = useOrgRole()
+  // Back-to-list target follows the role's home. While the role is still
+  // loading isOwner is false, so this safely defaults to the dashboard.
+  const backTo = isOwner ? '/overview' : '/dashboard'
 
   const [project, setProject] = useState<Project | null>(null)
   const [phases, setPhases] = useState<Phase[]>([])
@@ -703,7 +706,7 @@ export default function ProjectDetail() {
   if (error && !project) {
     return (
       <div>
-        <Link to="/" className="text-sm text-amber-700">
+        <Link to={backTo} className="text-sm text-amber-700">
           ← Back
         </Link>
         <p className="mt-4 rounded-lg bg-danger/15 px-3 py-2 text-sm text-danger">
@@ -726,7 +729,7 @@ export default function ProjectDetail() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/" className="text-sm font-medium text-amber-700">
+        <Link to={backTo} className="text-sm font-medium text-amber-700">
           ← All projects
         </Link>
       </div>

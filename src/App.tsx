@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
+import { useOrgRole } from './lib/useOrgRole'
 
 // Dashboard is the landing screen, so it stays eager. Login and ProjectDetail
 // are split into their own chunks to keep the initial bundle small.
@@ -34,6 +35,17 @@ function RouteFallback() {
   )
 }
 
+/**
+ * The app root ("/") sends each role to their home: owners get the visual
+ * Overview, PMs get the project dashboard. Waits for the role to resolve first
+ * so there's no flash of the wrong page. Both pages stay reachable from nav.
+ */
+function RoleLanding() {
+  const { isOwner, loading } = useOrgRole()
+  if (loading) return <RouteFallback />
+  return <Navigate to={isOwner ? '/overview' : '/dashboard'} replace />
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -52,8 +64,17 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
+          {/* Root redirects by role: owner → Overview, PM → Dashboard. */}
           <Route
             path="/"
+            element={
+              <ProtectedRoute>
+                <RoleLanding />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <Layout>
