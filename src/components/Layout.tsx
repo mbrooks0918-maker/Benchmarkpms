@@ -13,13 +13,36 @@ export default function Layout({ children }: { children: ReactNode }) {
   // redirect resolves it correctly rather than guessing.
   const homeTo = roleLoading ? '/' : isOwner ? '/overview' : '/dashboard'
 
+  // Auto build stamp (git SHA + build date) so the live deploy is identifiable
+  // at a glance — no manual version bumping.
+  const buildSha = __BUILD_SHA__
+  const buildDate = (() => {
+    const d = new Date(__BUILD_DATE__)
+    return Number.isNaN(d.getTime())
+      ? ''
+      : d.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+  })()
+
   return (
     <div className="min-h-screen bg-app">
       <header className="sticky top-0 z-10 border-b border-surfaceBorder bg-surface">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-3 px-4">
-          <Link to={homeTo} aria-label="Home" className="shrink-0">
-            <img src={wordmark} alt="BenchMark" className="h-7 w-auto" />
-          </Link>
+          <div className="flex shrink-0 flex-col justify-center leading-none">
+            <Link to={homeTo} aria-label="Home">
+              <img src={wordmark} alt="BenchMark" className="h-7 w-auto" />
+            </Link>
+            {/* Subtle auto build stamp — SHA always, date on wider screens. */}
+            <span className="mt-0.5 whitespace-nowrap text-[10px] leading-none text-muted/70">
+              build {buildSha}
+              {buildDate && (
+                <span className="hidden sm:inline"> · {buildDate}</span>
+              )}
+            </span>
+          </div>
           {/* Right cluster can shrink; the links scroll, Sign out stays pinned. */}
           <div className="flex min-w-0 items-center gap-3">
             <nav className="flex min-w-0 items-center gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
