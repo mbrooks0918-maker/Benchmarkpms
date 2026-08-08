@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { CatalogCategory, Selection } from '../lib/types'
 import { formatDate } from '../lib/format'
+import { getCachedSignedUrl } from '../lib/signedUrlCache'
 
 const PHOTO_BUCKET = 'selection-photos'
 const SIGNED_URL_TTL = 60 * 60 // 60 minutes
@@ -88,6 +89,10 @@ export default function SelectionsTab({
   )
   // Resolved (signed) display URLs keyed by the raw image_url.
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+  // Signature of the last-seen selection set (id:updated_at:image_url). Lets a
+  // poll/realtime event skip all work when nothing actually changed — no
+  // re-render, no URL re-signing, no photo re-download.
+  const lastSigRef = useRef<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
@@ -99,27 +104,22 @@ export default function SelectionsTab({
   const [copied, setCopied] = useState(false)
 
   // Resolve a display URL for an image_url that may be a full URL or a path.
+  // Reuses cached signed URLs (same URL string across polls → browser cache
+  // hit → no re-download of unchanged photos).
   const resolveImageUrls = useCallback(async (rows: Selection[]) => {
-    const raw = rows
-      .map((r) => r.image_url)
-      .filter((u): u is string => !!u)
+    const raw = rows.map((r) => r.image_url).filter((u): u is string => !!u)
     if (raw.length === 0) {
       setImageUrls({})
       return
     }
     const map: Record<string, string> = {}
-    const paths: string[] = []
     for (const u of raw) {
-      if (/^https?:\/\//.test(u)) map[u] = u
-      else paths.push(u)
-    }
-    if (paths.length > 0) {
-      const { data: signed } = await supabase.storage
-        .from(PHOTO_BUCKET)
-        .createSignedUrls(paths, SIGNED_URL_TTL)
-      for (const s of signed ?? []) {
-        if (s.path && s.signedUrl) map[s.path] = s.signedUrl
+      if (/^https?:\/\//.test(u)) {
+        map[u] = u
+        continue
       }
+      const url = await getCachedSignedUrl(PHOTO_BUCKET, u, SIGNED_URL_TTL)
+      if (url) map[u] = url
     }
     setImageUrls(map)
   }, [])
@@ -134,6 +134,16 @@ export default function SelectionsTab({
       return
     }
     const rows = (data ?? []) as Selection[]
+
+    // Skip all downstream work if the selection set is unchanged since last time
+    // (guards against the fallback poll re-rendering / re-resolving every tick).
+    const sig = rows
+      .map((r) => `${r.category_id}:${r.updated_at ?? ''}:${r.image_url ?? ''}`)
+      .sort()
+      .join('|')
+    if (sig === lastSigRef.current) return
+    lastSigRef.current = sig
+
     const map: Record<string, Selection> = {}
     for (const r of rows) map[r.category_id] = r
     setSelByCategory(map)
@@ -171,20 +181,26 @@ export default function SelectionsTab({
   }, [loadSelections, selectionTemplateId])
 
   // Realtime: live-update answers as the client fills them in. If the channel
-  // errors or closes, fall back to polling so the view never sits stale.
+  // errors or closes, fall back to polling — but only while the tab is visible
+  // and online, so a left-open background tab doesn't poll 24/7.
   useEffect(() => {
     let pollTimer: ReturnType<typeof setInterval> | null = null
-    const startPolling = () => {
-      if (pollTimer) return
-      pollTimer = setInterval(() => {
-        loadSelections()
-      }, FALLBACK_POLL_MS)
-    }
+    let channelDown = false // realtime is in a failed state → poll is wanted
+
+    const canFetch = () => !document.hidden && navigator.onLine
+
     const stopPolling = () => {
       if (pollTimer) {
         clearInterval(pollTimer)
         pollTimer = null
       }
+    }
+    const startPolling = () => {
+      if (pollTimer || !canFetch()) return
+      pollTimer = setInterval(() => {
+        // Extra guard: if the tab was hidden mid-interval, skip this tick.
+        if (canFetch()) loadSelections()
+      }, FALLBACK_POLL_MS)
     }
 
     const channel = supabase
@@ -203,19 +219,39 @@ export default function SelectionsTab({
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
+          channelDown = false
           stopPolling()
         } else if (
           status === 'CHANNEL_ERROR' ||
           status === 'TIMED_OUT' ||
           status === 'CLOSED'
         ) {
+          channelDown = true
           startPolling()
         }
       })
 
+    // Pause polling when hidden/offline; on becoming visible/online again, do a
+    // single catch-up refresh and resume polling only if realtime is still down.
+    const onVisibility = () => {
+      if (canFetch()) {
+        loadSelections()
+        if (channelDown) startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+    const onOffline = () => stopPolling()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('online', onVisibility)
+    window.addEventListener('offline', onOffline)
+
     return () => {
       stopPolling()
       supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('online', onVisibility)
+      window.removeEventListener('offline', onOffline)
     }
   }, [projectId, loadSelections])
 
