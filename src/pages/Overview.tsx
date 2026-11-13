@@ -121,10 +121,14 @@ export default function Overview() {
       setLoading(false)
       return
     }
-    const projects = (projRows ?? []) as Pick<
+    const allProjects = (projRows ?? []) as Pick<
       Project,
       'id' | 'name' | 'status' | 'status_note' | 'status_note_updated_at'
     >[]
+    // Overview tracks active work only — completed jobs drop off (they live on
+    // the dashboard's Completed list). Mirrors the dashboard's active filter;
+    // null/on_hold stay visible, only 'complete' is excluded.
+    const projects = allProjects.filter((p) => p.status !== 'complete')
     const projectIds = projects.map((p) => p.id)
 
     // Phases for all projects, then benchmarks for all those phases — batched,
