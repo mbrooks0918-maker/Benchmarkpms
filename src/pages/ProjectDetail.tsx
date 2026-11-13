@@ -840,15 +840,15 @@ export default function ProjectDetail() {
           )}
         </div>
 
-        {/* Owner can push the current headline to the assigned PM's phone */}
-        {isOwner && (
-          <div className="mt-3">
-            <AlertPmButton
-              projectId={project.id}
-              defaultMessage={project.status_note ?? ''}
-            />
-          </div>
-        )}
+        {/* Push an alert to the other side: owner → assigned PM, PM → owner.
+            Recipients are resolved server-side from the sender's role. */}
+        <div className="mt-3">
+          <AlertPmButton
+            projectId={project.id}
+            label={isOwner ? 'Alert PM' : 'Alert owner'}
+            defaultMessage={isOwner ? project.status_note ?? '' : ''}
+          />
+        </div>
       </header>
 
       {/* Contract & schedule — money parts owner-only; PMs see schedule only */}

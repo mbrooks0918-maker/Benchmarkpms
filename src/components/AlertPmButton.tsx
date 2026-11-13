@@ -3,10 +3,12 @@ import { supabase } from '../lib/supabase'
 
 interface Props {
   projectId: string
-  /** Pre-filled text the owner can edit before sending. */
+  /** Pre-filled text the sender can edit before sending. */
   defaultMessage?: string
   /** 'sm' for the compact per-phase button, 'md' for the project header. */
   size?: 'sm' | 'md'
+  /** Button + composer label; recipients are resolved server-side by role. */
+  label?: string
 }
 
 type Result = { kind: 'ok'; text: string } | { kind: 'err'; text: string }
@@ -20,6 +22,7 @@ export default function AlertPmButton({
   projectId,
   defaultMessage = '',
   size = 'md',
+  label = 'Alert PM',
 }: Props) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState(defaultMessage)
@@ -46,7 +49,7 @@ export default function AlertPmButton({
       if (error) throw error
       const sent = (data as { sent?: number; reason?: string })?.sent ?? 0
       if (sent > 0) {
-        setResult({ kind: 'ok', text: `Alert sent to PM${sent > 1 ? 's' : ''}.` })
+        setResult({ kind: 'ok', text: 'Alert sent.' })
         setOpen(false)
       } else {
         const reason =
@@ -89,7 +92,7 @@ export default function AlertPmButton({
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
-          Alert PM
+          {label}
         </button>
         {result && (
           <p
@@ -107,14 +110,14 @@ export default function AlertPmButton({
   return (
     <div className="w-full rounded-lg border border-accent/40 bg-field p-3">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-accent">
-        Alert PM
+        {label}
       </p>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={2}
         autoFocus
-        placeholder="What should the PM know?"
+        placeholder="What should they know?"
         className="mt-1 w-full rounded-lg border border-surfaceBorder bg-surface text-ink placeholder:text-muted px-2.5 py-1.5 text-sm outline-none focus:border-amber focus:ring-1 focus:ring-amber"
       />
       {result?.kind === 'err' && (
