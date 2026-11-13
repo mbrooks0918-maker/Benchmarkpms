@@ -612,11 +612,35 @@ export default function ProjectDetail() {
   const onMarkComplete = async () => {
     if (!project) return
     const ok = window.confirm(
-      `Mark "${project.name}" complete? It will move to the Completed list on the dashboard.`,
+      `Mark "${project.name}" complete? Any unfinished items will be checked off, and it will move to the Completed list on the dashboard.`,
     )
     if (!ok) return
     setStatusBusy(true)
     setError(null)
+
+    // Auto-complete every remaining benchmark so all phases roll up to done.
+    // Skip items marked N/A — those didn't apply, they weren't actually done.
+    // Phase status / progress_pct recalculates server-side via the DB trigger.
+    const remainingIds = Object.values(benchmarksByPhase)
+      .flat()
+      .filter((b) => !b.completed && !b.not_applicable)
+      .map((b) => b.id)
+    if (remainingIds.length > 0) {
+      const { error: benchErr } = await supabase
+        .from('benchmarks')
+        .update({
+          completed: true,
+          completed_date: todayISO(),
+          completed_by: session?.user?.id ?? null,
+        })
+        .in('id', remainingIds)
+      if (benchErr) {
+        setStatusBusy(false)
+        setError(benchErr.message)
+        return
+      }
+    }
+
     const { error: updErr } = await supabase
       .from('projects')
       .update({ status: 'complete', completed_at: new Date().toISOString() })
