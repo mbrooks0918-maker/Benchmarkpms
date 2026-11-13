@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useOrgRole } from '../lib/useOrgRole'
+import EnableNotifications from './EnableNotifications'
 import wordmark from '../assets/benchmark_logo_darkmode.png'
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -86,6 +87,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <span className="hidden max-w-[10rem] shrink-0 truncate text-sm text-muted sm:inline">
               {displayName}
             </span>
+            <EnableNotifications />
             <button
               type="button"
               onClick={signOut}

@@ -20,6 +20,7 @@ import StatusNote from '../components/StatusNote'
 import SelectionsTab from '../components/SelectionsTab'
 import ShareLinks from '../components/ShareLinks'
 import AssignedPMs from '../components/AssignedPMs'
+import AlertPmButton from '../components/AlertPmButton'
 import { useOrgRole } from '../lib/useOrgRole'
 import { addDays, todayISO } from '../lib/dates'
 import { formatDate } from '../lib/format'
@@ -838,6 +839,16 @@ export default function ProjectDetail() {
             </button>
           )}
         </div>
+
+        {/* Owner can push the current headline to the assigned PM's phone */}
+        {isOwner && (
+          <div className="mt-3">
+            <AlertPmButton
+              projectId={project.id}
+              defaultMessage={project.status_note ?? ''}
+            />
+          </div>
+        )}
       </header>
 
       {/* Contract & schedule — money parts owner-only; PMs see schedule only */}
@@ -1058,6 +1069,11 @@ export default function ProjectDetail() {
                       >
                         Delete
                       </button>
+                      <AlertPmButton
+                        projectId={project.id}
+                        defaultMessage={`${phase.name}: `}
+                        size="sm"
+                      />
                     </div>
                   )}
 
